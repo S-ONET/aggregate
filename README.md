@@ -1,9 +1,8 @@
 # TaskNet-aggregate
 
 Aggregate takes a table of task statements reported by workers (interviews, job postings, anything a source
-turns into atoms), groups them into families, and writes one statement per family, hearing every structural
-change twice and re-filing every atom until the corpus is exhausted. It is agnostic to the source of the
-atoms, and it knows nothing about O*NET: comparison lists, held-out documents and covariates are inputs the
+turns into atoms), groups them into families, and writes one statement per family. It is agnostic to the
+source of the atoms, and it knows nothing about O*NET: comparison lists, held-out documents and covariates are inputs the
 caller passes in. Repositories that produce atoms include this package to write the list.
 
 The code builds on the work for interviews in *Building Occupational Task Inventories from Worker Interviews
