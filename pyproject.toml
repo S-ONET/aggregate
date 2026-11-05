@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aggregate"
+name = "tasknet-aggregate"
 version = "0.1.0"
 description = "Aggregate task atoms into an occupational task list, and evaluate the list"
 readme = "README.md"

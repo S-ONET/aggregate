@@ -13,7 +13,8 @@ MIT.
 ## Install
 
 ```bash
-pip install -e '.[test]'      # openai, numpy, pyyaml; pytest for the offline suite
+pip install tasknet-aggregate     # the distribution name (PyPI / git); the import name is `aggregate`
+pip install -e '.[test]'          # from a checkout: openai, numpy, pyyaml; pytest for the offline suite
 pytest -q                     # no test calls a model
 ```
 
