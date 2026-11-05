@@ -3,6 +3,8 @@ of the statements on that incidence; plus names for the axes.
 
     res = incidence.run(ctx, lists, docs)            # docs: a DocSet with heldout + construction documents
     res = incidence.axis_names(ctx, res, title)      # names each PCA / CA axis off its extreme statements
+    st  = incidence.status(ctx, lists, docs)         # pairs, unjudged, requests, pending batches: a quote before spending
+    res = incidence.run(ctx, lists, docs, partial=True)   # the matrix from the verdicts so far, unjudged = not covering
 
 ROWS ARE THE POOL OF AN OCCUPATION'S DOCUMENTS (held-out, then construction). A document COVERS a statement when
 the pooled coverage judge says at least one of its atoms falls under it (models.pooled: the coverage rubric
@@ -255,9 +257,34 @@ def assemble(docs_order, sample, rows, lists, cand, yes, meta, covariates):
     return res, mats
 
 
-def run(ctx, lists, docs, *, live=False, workers=8):
+def status(ctx, lists, docs, occ=""):
+    """What judging these lists on these documents would take, from the cache and the batch ledger: a quote before
+    spending. Finished batches are harvested first. -> {"docs": {split: n}, "lists": {arm: k}, "pairs", "judged",
+    "unjudged", "requests" (Batch API requests the unjudged would need at models.pooled.group atoms each),
+    "pending" (batches for this occupation still in the ledger), "model", "group"}."""
+    lists = {a: list(L) for a, L in lists.items() if L}
+    rows, sample = rows_of(docs)
+    model, group = ctx.model("pooled"), int(ctx.config.get("models.pooled.group", 40))
+    out = {"docs": {sp: sample.count(sp) for sp in ("heldout", "construction")}, "lists": {a: len(L) for a, L in lists.items()},
+           "pairs": 0, "judged": 0, "unjudged": 0, "requests": 0, "pending": [], "model": model, "group": group}
+    if not rows:
+        return out
+    _, pairs = pairs_for(ctx, rows, lists)
+    collect(ctx, quiet=True)
+    yes, missing = judged(ctx, pairs)
+    per_label = {}
+    for _, L in missing:
+        per_label[L] = per_label.get(L, 0) + 1
+    out.update(pairs=len(pairs), judged=len(yes), unjudged=len(missing), requests=sum(-(-n // group) for n in per_label.values()),
+               pending=[r for r in ctx.batch.pending(TAG, model) if r.get("occ") == (occ or ctx.occupation)])
+    return out
+
+
+def run(ctx, lists, docs, *, live=False, partial=False, workers=8):
     """The matrices and maps from the cache; a residual below batch.min pairs is judged live (`live=True` judges
-    any residual live). Returns {"available": False, ...} when documents are absent or too many pairs are unjudged."""
+    any residual live). Returns {"available": False, ...} when documents are absent or too many pairs are unjudged,
+    unless `partial`: then every unjudged pair counts as not covering (nothing is judged) and the result carries
+    `preliminary` with the true count."""
     lists = {a: list(L) for a, L in lists.items() if L}
     rows, sample = rows_of(docs)
     if not rows:
@@ -266,7 +293,7 @@ def run(ctx, lists, docs, *, live=False, workers=8):
     yes, missing = judged(ctx, pairs)
     min_batch = int(ctx.config.get("batch.min", 40))
     for attempt in range(3):
-        if not missing or not (len(missing) < min_batch or live):
+        if partial or not missing or not (len(missing) < min_batch or live):
             break
         groups = _groups(ctx, missing)
         print(f"  judging {len(missing):,} residual pairs live in {len(groups):,} call(s)" + (f" [pass {attempt + 1}]" if attempt else ""), flush=True)
@@ -279,13 +306,15 @@ def run(ctx, lists, docs, *, live=False, workers=8):
         except Exception as e:                            # noqa: BLE001
             print(f"  live judging failed ({type(e).__name__}: {str(e)[:120]})", flush=True)
             break
-    if missing and len(missing) > max(5, int(0.002 * len(pairs))):
+    if missing and not partial and len(missing) > max(5, int(0.002 * len(pairs))):
         return {"available": False, "why": f"{len(missing):,} of {len(pairs):,} pooled pairs not judged yet (submit / collect first)",
                 "missing": len(missing), "pairs": len(pairs)}
     meta = {d["id"]: d.get("meta") or {} for d in docs.docs}
     covariates = docs.covariates()
     res, mats = assemble(list(rows), sample, rows, lists, cand, yes, meta, covariates)
     res["uncached_pairs"] = {"total": len(missing), "treated_as": "not covering"}
+    if partial:
+        res["preliminary"] = {"unjudged": len(missing), "pairs": len(pairs), "built": time.strftime("%Y-%m-%d %H:%M")}
     res["judge"] = {"model": ctx.model("pooled"), "prompt": "coverage_batch", "group": int(ctx.config.get("models.pooled.group", 40)),
                     "section": SECTION, "pairs": len(pairs)}
     res["matrices"] = {a: M.astype(int).tolist() for a, M in mats.items()}
