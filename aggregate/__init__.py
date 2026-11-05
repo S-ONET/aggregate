@@ -4,9 +4,8 @@
 
     agg = Aggregator(Config.load("configs.yml"), client=openai.OpenAI(), workdir="results/lawyers")
     atoms = agg.process(rows)                 # raw task texts -> atoms (normalize + dedup)
-    build = agg.build(atoms)                  # the chain -> build.json under the workdir
-    problems = agg.verify(build)
-    agg.evaluate.coverage(build, docs)        # held-out evaluation, every data input passed in
+    build = agg.build(atoms)                  # the chain -> build.json under the workdir; invariants checked
+    agg.evaluate.coverage(lists, heldout)     # held-out evaluation, every data input passed in
     agg.judges.covers(atom, statement)        # the judges as an instrument
 """
 from __future__ import annotations
@@ -18,11 +17,12 @@ from .cache import Cache
 from .config import Config
 from .context import Context
 from .engine import Engine
+from .evaluate import statements_of as statements
 from .evaluate.docs import DocSet
 from .prompts import Prompts
 
 __version__ = "0.1.0"
-__all__ = ["Aggregator", "Config", "Engine", "Prompts", "Atoms", "DocSet", "Context", "Cache"]
+__all__ = ["Aggregator", "Config", "Engine", "Prompts", "Atoms", "DocSet", "Context", "Cache", "statements"]
 
 
 class Aggregator:
