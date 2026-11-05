@@ -12,8 +12,7 @@ at Scale* (Wang, Haupt, Robinson, Lewis, Brynjolfsson, Yang, 2026). MIT.
 ## Install
 
 ```bash
-pip install tasknet-aggregate                                        # the distribution; the import name is `aggregate`
-pip install 'tasknet-aggregate @ git+https://github.com/S-ONET/aggregate.git@v0.1.0'
+pip install 'tasknet-aggregate @ git+https://github.com/S-ONET/aggregate.git@v0.1.0'   # the import name is `aggregate`
 ```
 
 Developing: `pip install -e '.[test]'` from a checkout, then `pytest -q` (no test calls a model).
