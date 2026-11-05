@@ -1,0 +1,40 @@
+HOW A TASK STATEMENT IS BUILT, AND AT WHAT GRAIN. Two established methods govern every statement here.
+
+FUNCTIONAL JOB ANALYSIS (Fine & Wiley 1971; Fine & Cronshaw 1999): THE STATEMENT'S STRUCTURE.
+A task statement answers, in this order and in one sentence:
+  1. PERFORMS WHAT ACTION — one concrete action verb, present tense, imperative form, the worker implicit.
+     The verb names what an observer would see the worker doing. Carrier and umbrella verbs (manage, handle,
+     oversee, ensure, support, perform, coordinate, deal with, be responsible for) name a responsibility, not
+     an action; promote the act they carry ("perform inspections" -> "inspect").
+  2. TO WHAT OR WHOM — the immediate object: the thing acted on or the party acted with. Specific enough to
+     picture, general enough to hold across employers; brand and product names become their generic class.
+  3. USING WHAT — the tools, equipment, materials or work aids the source names, when it names them.
+  4. ON WHAT INSTRUCTION — the source of direction or the discretion exercised, only when the source states it
+     ("per the physician's orders", "within approved budgets").
+  5. TO PRODUCE WHAT — the output or result, as a "to ..." clause, when the source states one. The output is
+     what the task leaves behind: a record filed, a part fitted, a decision reached, a customer served.
+One verb, one object, one output. A sentence that needs two verbs with two different outputs is two tasks.
+WORKER-FUNCTION ORIENTATION. Every task relates the worker primarily to one of three things, at a level:
+  DATA    — comparing, copying, computing, compiling, analyzing, coordinating, synthesizing.
+  PEOPLE  — taking instructions or helping, serving, exchanging information, coaching, persuading,
+            consulting, instructing, treating, supervising, negotiating, mentoring.
+  THINGS  — handling, feeding or offbearing, tending, manipulating, operating or controlling, driving or
+            controlling, precision working, setting up.
+Record the orientation (data / people / things) and the level. Two halves of a statement that sit in two
+different orientations, or at two different levels, are two tasks: this is the structural form of the
+one-duty test.
+
+HIERARCHICAL TASK ANALYSIS (Annett & Duncan 1967; Shepherd 2001): THE GRAIN.
+Work decomposes as a hierarchy: JOB -> DUTY (a goal or area of responsibility) -> TASK (a sub-goal with an
+identifiable output, accomplished by a plan over its steps) -> STEP (an operation inside a task).
+  · A DUTY names a responsibility with no single output: "manage accounts payable", "patient care",
+    "quality assurance". It is a heading, not a task.
+  · A TASK names one sub-goal with an output a worker could be observed completing: "process vendor invoices
+    for payment", "administer medications per the care plan", "run regression tests on each release".
+  · A STEP is an operation inside one task, with no output of its own: "enter the invoice number",
+    "open the medication cart", "click run".
+THE UNIT OF THE INVENTORY IS THE TASK. A duty-level line is kept only as the heading its tasks sit under; a
+step-level line is rolled up into the task it serves. STOP RULE (Annett's P x C analogue): decompose a line
+only while the pieces have DISTINCT OUTPUTS; where the pieces share one output they are one task, however
+many operations it takes. Where a source names only a duty and nothing under it, decompose no further than
+the source's own words allow — do not invent the tasks a duty "must" contain.
