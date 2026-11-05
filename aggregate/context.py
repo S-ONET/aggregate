@@ -47,8 +47,8 @@ class Context:
         return self.atoms.code if self.atoms is not None else ""
 
     @property
-    def min_workers(self) -> int:
-        return int(self.config.get("min_workers", 2))
+    def min_sources(self) -> int:
+        return int(self.config.get("min_sources", 2))
 
     @property
     def judges(self):

@@ -2,7 +2,7 @@
 knows what O*NET is: a comparison list is a list of statements the caller passes in.
 
     lists = {"ours": statements_of(build), "reference": [...], "other": [...]}   # the inventories compared
-    agg.evaluate.coverage(lists, docs)          held-out atoms covered by each list (worker bootstrap)
+    agg.evaluate.coverage(lists, docs)          held-out atoms covered by each list (source bootstrap)
     agg.evaluate.silhouette(lists, docs, pool)  held-out tasks tighter under one list's statements than another's?
     agg.evaluate.incidence(lists, docs)         docs x statements incidence per list, PCA / CA, covariate correlations
     agg.evaluate.crosswalk(ours, other)         new / refined / related for each statement of `ours` against `other`

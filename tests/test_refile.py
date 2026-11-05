@@ -1,7 +1,7 @@
 """refile: who reaches the ballot, FILE / UNFILED / LEAVE, the floor as a placement rule, concurrence on a move."""
 from aggregate import families
 from aggregate.aggregation import refile
-from conftest import atoms_from_workers, flat_embed
+from conftest import atoms_from_sources, flat_embed
 
 CORE = [{"statement": "Draft pleadings and motions for filing with the court.", "members": ["Draft a motion to dismiss."]},
         {"statement": "Advise clients on legal options and risks.", "members": ["Advise a client on settlement risk."]}]
@@ -49,9 +49,9 @@ def test_leftovers_subtract_claimed_atoms():
 
 def _art():
     return {"meta": {"n_atoms": 8},
-            "core": [{"statement": "Do alpha work.", "head": "Do alpha work.", "members": ["a1", "a2"], "workers": ["w1", "w2"],
+            "core": [{"statement": "Do alpha work.", "head": "Do alpha work.", "members": ["a1", "a2"], "sources": ["w1", "w2"],
                       "prevalence": 2, "written_for": "stampF", "written_with": "stampW"},
-                     {"statement": "Do beta work.", "head": "Do beta work.", "members": ["b1", "b2"], "workers": ["w3", "w4"],
+                     {"statement": "Do beta work.", "head": "Do beta work.", "members": ["b1", "b2"], "sources": ["w3", "w4"],
                       "prevalence": 2, "written_for": "stampB", "written_with": "stampW"}],
             "released": ["p1", "p2", "p3", "p4"]}
 
@@ -59,8 +59,8 @@ def _art():
 _W = {"a1": {"w1"}, "a2": {"w2"}, "b1": {"w3"}, "b2": {"w4"}, "p1": {"w5"}, "p2": {"w6"}, "p3": {"w7"}, "p4": {"w8"}}
 
 
-def _setup(agg, monkeypatch, fates, off_home=None, workers=_W):
-    ctx = agg.context(atoms_from_workers(workers))
+def _setup(agg, monkeypatch, fates, off_home=None, sources=_W):
+    ctx = agg.context(atoms_from_sources(sources))
     monkeypatch.setattr(refile, "excluded", lambda ctx, core, unfiled=(): ([], off_home or {}))
     monkeypatch.setattr(ctx.judges, "dispose", lambda atom, tasks, home=None, siblings=(), draw=1: fates[atom])
     return ctx
@@ -119,7 +119,7 @@ def test_bad_file_target_leaves_the_atom_put(agg, monkeypatch):
 
 
 def test_family_below_the_floor_is_demoted_to_the_pile(agg, monkeypatch):
-    ctx = _setup(agg, monkeypatch, LEAVE, workers={**_W, "a2": {"w1"}})
+    ctx = _setup(agg, monkeypatch, LEAVE, sources={**_W, "a2": {"w1"}})
     art, _ = refile.place(ctx, _art())
     assert [f["statement"] for f in art["core"]] == ["Do beta work."]
     assert {"a1", "a2"} <= set(art["released"]) and art["refile_log"]["demoted"] == ["Do alpha work."]
@@ -131,7 +131,7 @@ def test_disagreeing_draws_leave_a_filed_atom_where_it_is(agg, monkeypatch):
     def two_minds(atom, tasks, home=None, siblings=(), draw=1):
         calls.append(draw)
         return {"fate": "UNFILED", "task": None} if draw == 1 else {"fate": "FILE", "task": 1}
-    ctx = agg.context(atoms_from_workers({"a1": {"w1"}, "a2": {"w2"}, "b1": {"w3"}, "b2": {"w4"}}))
+    ctx = agg.context(atoms_from_sources({"a1": {"w1"}, "a2": {"w2"}, "b1": {"w3"}, "b2": {"w4"}}))
     monkeypatch.setattr(refile, "excluded", lambda ctx, core, unfiled=(): ([], {"a2": ("Do alpha work.", [])}))
     monkeypatch.setattr(ctx.judges, "dispose", two_minds)
     art, _ = refile.place(ctx, {"core": [{"statement": "Do alpha work.", "members": ["a1", "a2"]},
@@ -141,7 +141,7 @@ def test_disagreeing_draws_leave_a_filed_atom_where_it_is(agg, monkeypatch):
 
 def test_a_keep_is_not_paid_for_twice(agg, monkeypatch):
     calls = []
-    ctx = agg.context(atoms_from_workers({"a1": {"w1"}, "a2": {"w2"}}))
+    ctx = agg.context(atoms_from_sources({"a1": {"w1"}, "a2": {"w2"}}))
     monkeypatch.setattr(refile, "excluded", lambda ctx, core, unfiled=(): ([], {"a2": ("Do alpha work.", [])}))
     monkeypatch.setattr(ctx.judges, "dispose", lambda atom, tasks, home=None, siblings=(), draw=1: calls.append(draw) or {"fate": "FILE", "task": 1})
     refile.place(ctx, {"core": [{"statement": "Do alpha work.", "members": ["a1", "a2"]}], "released": []})

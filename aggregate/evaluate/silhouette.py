@@ -141,17 +141,17 @@ def run(ctx, lists, docs, pool, *, split="heldout", B=None, null_draws=None, wor
     if not tasks:
         return {"available": False, "why": f"no {split} documents"}
     lists = {a: list(L) for a, L in lists.items() if L}
-    by_w = stats.by_worker_tasks(tasks)
+    by_w = stats.by_source_tasks(tasks)
     allw = list(dict.fromkeys(t for v in by_w.values() for t in v))
     pool = [a for a in dict.fromkeys(pool) if a not in set(allw)]
     V = ctx.judges.embed(pool + allw + [s for L in lists.values() for s in L])
     MAP = {arm: assign(ctx, pool + allw, L, workers) for arm, L in lists.items()}
     diffs, lev = score(ctx, by_w, pool, lists, V, MAP, null_draws)
     arms = list(lists)
-    gaps = {f"{a}-{b}": stats.boot_worker_means({w: sc[a] - sc[b] for w, sc in diffs.items()}, B) for a, b in stats.arm_pairs(arms)}
-    return {"available": True, "n_workers": len(diffs), "n_tasks": len(allw), "pool": len(pool),
+    gaps = {f"{a}-{b}": stats.boot_source_means({w: sc[a] - sc[b] for w, sc in diffs.items()}, B) for a, b in stats.arm_pairs(arms)}
+    return {"available": True, "n_sources": len(diffs), "n_tasks": len(allw), "pool": len(pool),
             "k": {a: len(L) for a, L in lists.items()},
             "sil": {a: float(np.mean(lev[f"sil_{a}"])) if lev[f"sil_{a}"] else float("nan") for a in arms},
             "null": {a: float(np.mean(lev[f"null_{a}"])) if lev[f"null_{a}"] else float("nan") for a in arms},
-            "gaps": gaps, "per_worker": diffs,
+            "gaps": gaps, "per_source": diffs,
             "placement": {"model": ctx.model("placement"), "variant": R10_VARIANT, "null_draws": null_draws, "B": B}}

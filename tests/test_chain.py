@@ -3,7 +3,7 @@ written where chain.build says it writes it."""
 import json
 
 from aggregate.aggregation import chain, cluster, synthesize
-from conftest import atoms_from_workers, orth_embed
+from conftest import atoms_from_sources, orth_embed
 
 W = {"a1": {"w1"}, "a2": {"w2"}, "b1": {"w3"}, "b2": {"w4"}, "lone": {"w5"}}
 
@@ -25,7 +25,7 @@ def _stub(ctx, monkeypatch, draws=None):
 
 
 def test_fresh_build_runs_to_completion(agg, monkeypatch, tmp_path):
-    ctx = agg.context(atoms_from_workers(W), workdir=tmp_path / "w")
+    ctx = agg.context(atoms_from_sources(W), workdir=tmp_path / "w")
     _stub(ctx, monkeypatch)
     build = chain.build(ctx)
     stmts = sorted(f["statement"] for f in build["core"])
@@ -39,12 +39,12 @@ def test_fresh_build_runs_to_completion(agg, monkeypatch, tmp_path):
 
 
 def test_amend_build_keeps_adopted_statements(agg, monkeypatch, tmp_path):
-    ctx = agg.context(atoms_from_workers(W), workdir=tmp_path / "w")
+    ctx = agg.context(atoms_from_sources(W), workdir=tmp_path / "w")
     _stub(ctx, monkeypatch)
     final = chain.build(ctx)
     for f in final["core"]:
         f["statement"] = f["statement"].replace("work", "WORK (adopted)")
-    ctx2 = agg.context(atoms_from_workers(W), workdir=tmp_path / "w2")
+    ctx2 = agg.context(atoms_from_sources(W), workdir=tmp_path / "w2")
     _stub(ctx2, monkeypatch, draws=[[], []])
     build = chain.build(ctx2, standing=final)
     assert build["meta"]["mode"] == "AMEND"
@@ -52,7 +52,7 @@ def test_amend_build_keeps_adopted_statements(agg, monkeypatch, tmp_path):
 
 
 def test_aggregator_build_entry_point(agg, monkeypatch, tmp_path):
-    atoms = atoms_from_workers(W)
+    atoms = atoms_from_sources(W)
     atoms.write(tmp_path / "atoms.csv")
     ctx = agg.context(atoms, workdir=tmp_path / "w")
     _stub(ctx, monkeypatch)

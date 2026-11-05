@@ -1,5 +1,5 @@
 """chain — one loop builds an occupation: cluster -> statements -> split -> statements -> merge/sharpen -> refile,
-REPEATED UNTIL CLUSTER PROPOSES NO NEW TASK THAT MEETS THE CRITERIA (the worker floor) — the only stopping
+REPEATED UNTIL CLUSTER PROPOSES NO NEW TASK THAT MEETS THE CRITERIA (the source floor) — the only stopping
 condition; cycle 1 always runs in full — capped at chain.max_cycles.
 
     build = chain.build(ctx)                                   # FRESH: an empty core, every atom in the pile

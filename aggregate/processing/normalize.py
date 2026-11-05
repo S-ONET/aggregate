@@ -1,6 +1,6 @@
 """normalize — split, filter and rewrite raw task texts into canonical O*NET-form statements.
 
-    atoms = processing.normalize(ctx, rows)      # rows: Atoms, or dicts with worker / task / status
+    atoms = processing.normalize(ctx, rows)      # rows: Atoms, or dicts with source / task / status
 
 Four passes, each cached on (model, effort, prompt hash, task text) under <cache_dir>/../processing/stage2_normalize:
   Pass 0 — split:     typed NARRATIVES (>= 2 sentences or > 30 words, status added/edited) become one row per
@@ -9,7 +9,7 @@ Four passes, each cached on (model, effort, prompt hash, task text) under <cache
   Pass 2 — normalize: rewrite survivors into a canonical task statement
   Pass 3 — brand:     a focused pass for the product / brand names the multi-rule pass misses
 Every status is processed (added, edited AND confirmed). Output rows carry `original` = the text as the
-worker typed it when it changed.
+source typed it when it changed.
 """
 from __future__ import annotations
 
@@ -172,7 +172,7 @@ class _Pass:
 
 
 def normalize(ctx, rows, batch_size=DEFAULT_BATCH, workers=None) -> Atoms:
-    """rows (Atoms or dicts with worker, task, status, ...) -> Atoms with normalized `task` and
+    """rows (Atoms or dicts with source, task, status, ...) -> Atoms with normalized `task` and
     `original`. Non-target rows pass through unchanged."""
     rows = [dict(r) for r in (rows.rows if isinstance(rows, Atoms) else rows)]
     workers = workers or ctx.workers_for("normalize")

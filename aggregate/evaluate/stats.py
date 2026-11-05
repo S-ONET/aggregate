@@ -4,15 +4,15 @@ from __future__ import annotations
 import numpy as np
 
 
-def boot_workers(per_worker, B=10000, seed=0):
-    """Paired cluster bootstrap over workers: `per_worker` = {worker: array of per-task differences}.
+def boot_sources(per_source, B=10000, seed=0):
+    """Paired cluster bootstrap over sources: `per_source` = {source: array of per-task differences}.
     -> {est, se, ci, p, n}. SE = sd of the draws; p recentred, floored at 1/(B+1)."""
-    w = list(per_worker)
+    w = list(per_source)
     n = len(w)
     if n == 0:
         return {"est": float("nan"), "se": float("nan"), "ci": [float("nan")] * 2, "p": float("nan"), "n": 0}
     rng = np.random.default_rng(seed)
-    arrs = [np.asarray(per_worker[k], float) for k in w]
+    arrs = [np.asarray(per_source[k], float) for k in w]
     obs = float(np.concatenate(arrs).mean())
     if n == 1:
         return {"est": obs, "se": float("nan"), "ci": [obs, obs], "p": float("nan"), "n": 1}
@@ -25,9 +25,9 @@ def boot_workers(per_worker, B=10000, seed=0):
     return {"est": obs, "se": float(dr.std(ddof=1)), "ci": [float(lo), float(hi)], "p": max(p, 1.0 / (B + 1)), "n": n}
 
 
-def boot_worker_means(per_worker, B=10000, seed=0):
-    """Bootstrap over workers where each worker contributes ONE value."""
-    return boot_workers({k: [v] for k, v in per_worker.items()}, B, seed)
+def boot_source_means(per_source, B=10000, seed=0):
+    """Bootstrap over sources where each source contributes ONE value."""
+    return boot_sources({k: [v] for k, v in per_source.items()}, B, seed)
 
 
 def boot_statements(values, B=4000, seed=0):
@@ -76,11 +76,11 @@ def arm_pairs(arms):
     return [(ours, b) for b in arms[1:]] + [(a, b) for a in arms[1:] for b in arms[1:] if a < b]
 
 
-def by_worker_tasks(tasks):
-    """[{worker, text}] -> {worker: [distinct texts]} in order."""
+def by_source_tasks(tasks):
+    """[{source, text}] -> {source: [distinct texts]} in order."""
     out = {}
     for t in tasks:
-        out.setdefault(t["worker"], [])
-        if t["text"] not in out[t["worker"]]:
-            out[t["worker"]].append(t["text"])
+        out.setdefault(t["source"], [])
+        if t["text"] not in out[t["source"]]:
+            out[t["source"]].append(t["text"])
     return out

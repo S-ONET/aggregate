@@ -5,9 +5,9 @@
 The duties judge sees the statement and its atoms and names the parts and their members if it is fused. The
 seen-ledger (workdir/ledgers/defuse_seen.json) replays standing verdicts BY MEMBER SET: a family whose
 activities did not change keeps its verdict however the prose was reworded. A row carrying the writer's fusion
-⚑ is re-opened once. `decide` partitions by the ATOMS (exact text) and applies the worker floor per part —
-keep/partition-failed when the atoms do not split as claimed, else a split with a basis (exclusive-workers,
-shared-workers, one-supported-part, no-supported-part). `concurrence` (chain.concurrence.split, off by default)
+⚑ is re-opened once. `decide` partitions by the ATOMS (exact text) and applies the source floor per part —
+keep/partition-failed when the atoms do not split as claimed, else a split with a basis (exclusive-sources,
+shared-sources, one-supported-part, no-supported-part). `concurrence` (chain.concurrence.split, off by default)
 demotes a one-signal split. `apply_splits` turns applied splits into families; every atom lands in a part or
 the pile. NO HUMAN RULING GATES THIS: a ruling corrects the deliverable, never the machine.
 """
@@ -73,9 +73,9 @@ def partition(core, seen, conf=0.75):
     return fresh, standing
 
 
-def decide(row, atom_workers, min_workers=2):
+def decide(row, atom_sources, min_sources=2):
     """KEEP or SPLIT a fused verdict, by whether the proposed parts actually partition the members and publish
-    under the worker floor. -> (verdict, parts, basis, feedback)."""
+    under the source floor. -> (verdict, parts, basis, feedback)."""
     rawouts = [o for o in row["outcomes"] if (o.get("statement") if isinstance(o, dict) else str(o)).strip()]
     outs = [(o.get("statement") if isinstance(o, dict) else str(o)) for o in rawouts]
     if len(outs) < 2:
@@ -118,19 +118,19 @@ def decide(row, atom_workers, min_workers=2):
     parts = []
     for i, o in enumerate(outs):
         atoms = assign[i]
-        workers = set()
+        sources = set()
         for a in atoms:
-            workers |= set(atom_workers.get(a, set()))
-        parts.append({"statement": o, "members": sorted(atoms), "n_members": len(atoms), "prevalence": len(workers),
-                      "publishable": len(workers) >= min_workers, "_workers": workers})
+            sources |= set(atom_sources.get(a, set()))
+        parts.append({"statement": o, "members": sorted(atoms), "n_members": len(atoms), "prevalence": len(sources),
+                      "publishable": len(sources) >= min_sources, "_sources": sources})
     for label, extra in (("(described by MORE THAN ONE proposed part — the parts overlap)", shared),
                          ("(not covered by any proposed part)", unplaced)):
         if extra:
             parts.append({"statement": label, "members": sorted(extra), "n_members": len(extra), "prevalence": None,
-                          "publishable": False, "_workers": set()})
+                          "publishable": False, "_sources": set()})
     for part in parts:
-        others = set().union(*[q["_workers"] for q in parts if q is not part]) if len(parts) > 1 else set()
-        part["exclusive"] = len(part["_workers"] - others)
+        others = set().union(*[q["_sources"] for q in parts if q is not part]) if len(parts) > 1 else set()
+        part["exclusive"] = len(part["_sources"] - others)
     for part in parts:
         if not part["statement"].startswith("(") and part["n_members"] < 2:
             part["publishable"] = False
@@ -140,7 +140,7 @@ def decide(row, atom_workers, min_workers=2):
     named = [p for p in parts if not p["statement"].startswith("(")]
 
     def ev(p):
-        return f"{p['n_members']} atoms / {p['prevalence'] or 0} workers"
+        return f"{p['n_members']} atoms / {p['prevalence'] or 0} sources"
     with_atoms = [p for p in named if p["n_members"] > 0]
     if len(shared) * 2 >= len(row["members"]) or len(with_atoms) < 2:
         return "keep", parts, "partition-failed", (
@@ -148,25 +148,25 @@ def decide(row, atom_workers, min_workers=2):
             f"described by more than one of them and only {len(with_atoms)} part(s) hold any activity "
             f"uniquely. The members do not partition the way the verdict claims, so it carries no evidence.")
     if len(real) >= 2:
-        strong = [p for p in real if p["exclusive"] >= min_workers]
+        strong = [p for p in real if p["exclusive"] >= min_sources]
         if len(strong) >= 2:
-            return "split", parts, "exclusive-workers", ""
-        fb = ("Two or more parts clear the worker floor, but no part has "
-              f"{min_workers} workers who do it and not the others — "
+            return "split", parts, "exclusive-sources", ""
+        fb = ("Two or more parts clear the source floor, but no part has "
+              f"{min_sources} sources that do it and not the others — "
               + "; ".join(f'"{p["statement"][:70]}" ({ev(p)}, {p["exclusive"]} exclusive)' for p in real)
-              + f". The family has {row['prevalence']} workers in total. Splits on this basis audit as sound as "
-                f"exclusive-workers ones (22/25 vs 23/25). Reviewer's grounds: {row['reason']}")
-        return "split", parts, "shared-workers", fb
+              + f". The family has {row['prevalence']} sources in total. Splits on this basis audit as sound as "
+                f"exclusive-sources ones (22/25 vs 23/25). Reviewer's grounds: {row['reason']}")
+        return "split", parts, "shared-sources", fb
     if len(real) == 1:
-        fb = (f"Of the {row['n_members']} activities filed here, only {real[0]['n_members']} have the worker "
-              f"evidence to publish ({real[0]['prevalence']} workers). "
+        fb = (f"Of the {row['n_members']} activities filed here, only {real[0]['n_members']} have the source "
+              f"evidence to publish ({real[0]['prevalence']} sources). "
               + "".join(f'The part "{p["statement"][:90]}" rests on {ev(p)} — below the floor of '
-                        f'{min_workers} workers, so its activities are released to the pile. ' for p in thin)
+                        f'{min_sources} sources, so its activities are released to the pile. ' for p in thin)
               + "The supported activities become the family.")
         return "split", parts, "one-supported-part", fb
-    fb = ("No proposed part of this statement clears the worker floor — "
+    fb = ("No proposed part of this statement clears the source floor — "
           + "; ".join(f'"{p["statement"][:80]}" ({ev(p)})' for p in thin)
-          + f". The family rests on {row['prevalence']} workers and no duty inside it does, so its activities "
+          + f". The family rests on {row['prevalence']} sources and no duty inside it does, so its activities "
             f"are released to the pile rather than published under a statement none of them supports.")
     return "split", parts, "no-supported-part", fb
 
@@ -193,13 +193,13 @@ def concurrence(ctx, rows, second_draw=None):
     for r in rows:
         if r.get("verdict") != "split" or r.get("standing"):
             continue
-        if r.get("basis") == "exclusive-workers" or r.get("corroboration"):
+        if r.get("basis") in ("exclusive-sources", "exclusive-workers") or r.get("corroboration"):
             continue
         v = second_draw(r)
         if v.get("one_duty"):
             r["verdict"], r["basis"] = "keep", "no-concurrence"
             r["feedback"] = ("DOCKET: fused on one draw; a second independent draw found one duty and no "
-                             "corroborating signal exists (exclusive-workers, refused repair, standing verdict). "
+                             "corroborating signal exists (exclusive-sources, refused repair, standing verdict). "
                              "A structural change needs two signals — recorded, not applied. " + (r.get("feedback") or ""))
         else:
             r["basis"] = (r.get("basis") or "") + "+concurrence"
@@ -209,12 +209,12 @@ def concurrence(ctx, rows, second_draw=None):
 def apply_splits(ctx, rows, source_meta, source_leftovers=None, source_name="build.json"):
     """Turn the SPLIT verdicts into a families artifact. -> (artifact, log)."""
     fams, log = [], {"split": [], "dropped": []}
-    W = ctx.atoms.workers
+    W = ctx.atoms.sources
     for r in rows:
         def _fam(head, members, stamps=None, born_of=None):
             mem = sorted(set(members))
             w = sorted({x for m in mem for x in W.get(m, set())})
-            f = {"head": head, "members": mem, "workers": w, "prevalence": len(w)}
+            f = {"head": head, "members": mem, "sources": w, "prevalence": len(w)}
             if born_of is not None:
                 f["sid"], f["sid_split_from"] = families.new_sid(), born_of.get("sid")
             elif stamps and stamps.get("sid"):
@@ -263,7 +263,7 @@ def hear(ctx, build):
     """Judge every family (fresh ones live, standing ones replayed from the ledger) -> the verdict rows."""
     core, trace = build["core"], build.get("trace", [])
     conf = float(ctx.config.get("chain.gate_conf", 0.75))
-    W = ctx.atoms.workers
+    W = ctx.atoms.sources
     seen_path = ctx.ledger("defuse_seen.json")
     seen = load_json(seen_path, {})
     if not isinstance(seen, dict):
@@ -289,7 +289,7 @@ def hear(ctx, build):
         rows = list(ex.map(run, fresh))
     for r in rows:
         r["verdict"], r["parts"], r["basis"], r["feedback"] = (
-            decide(r, W, ctx.min_workers) if r["fused"] else ("keep", [], "", ""))
+            decide(r, W, ctx.min_sources) if r["fused"] else ("keep", [], "", ""))
     by_mem = by_members(seen)
     for c in standing:
         rec = lookup(c, seen, by_mem)
@@ -303,7 +303,7 @@ def hear(ctx, build):
     rows = concurrence(ctx, rows)
     for r in rows:
         for part in r["parts"]:
-            part.pop("_workers", None)
+            part.pop("_sources", None)
     for r in rows:
         if not r.get("standing"):
             seen[sha256(r["statement"])] = {k: r.get(k) for k in ("fused", "outcomes", "reason", "verdict", "parts", "basis",

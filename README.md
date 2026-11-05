@@ -18,7 +18,7 @@ pip install 'tasknet-aggregate @ git+https://github.com/S-ONET/aggregate.git@v0.
 ## Building a task list
 
 A build starts from the task statements workers reported, as rows, and ends with a list of statements, each
-backed by the atoms and workers behind it. Three calls:
+backed by the atoms and sources behind it. Three calls:
 
 ```python
 import openai
@@ -34,26 +34,26 @@ build = agg.build(atoms)                  # the list; every invariant is checked
 
 ### Rows
 
-A row is one thing one worker said they do. A worker is a session, an employer, a respondent — whatever the
-source counts people by; `occupation` is any code the source uses and `title` is the occupation's name, which
-the prompts are rendered with.
+A row is one thing one source said they do. A source is whoever reported the task — an interviewed worker, an
+employer's posting, a respondent — and is what every count in the pipeline is a count of. `occupation` is any
+code the data uses and `title` is the occupation's name, which the prompts are rendered with.
 
 ```python
 rows = [
-    {"worker": "s17", "task": "I draft motions and file them with the court", "occupation": "23-1011.00", "title": "Lawyers", "status": "added"},
-    {"worker": "s17", "task": "Advising clients on whether to settle",         "occupation": "23-1011.00", "title": "Lawyers", "status": "edited"},
-    {"worker": "s42", "task": "Draft motions for filing.",                      "occupation": "23-1011.00", "title": "Lawyers", "status": "confirmed"},
+    {"source": "s17", "task": "I draft motions and file them with the court", "occupation": "23-1011.00", "title": "Lawyers", "status": "added"},
+    {"source": "s17", "task": "Advising clients on whether to settle",         "occupation": "23-1011.00", "title": "Lawyers", "status": "edited"},
+    {"source": "s42", "task": "Draft motions for filing.",                      "occupation": "23-1011.00", "title": "Lawyers", "status": "confirmed"},
 ]
 ```
 
 ### Atoms
 
 `agg.process` rewrites each row into a verb-led statement, drops non-tasks, and removes exact duplicates
-within a worker. An atom is one distinct task text plus the set of workers who reported it; the table has one
-row per (worker, task). It is a CSV you can keep and hand around:
+within a source. An atom is one distinct task text plus the set of sources that reported it; the table has one
+row per (source, task). It is a CSV you can keep and hand around:
 
 ```
-worker,task,occupation,title,status,original
+source,task,occupation,title,status,original
 s17,Draft motions and file them with the court.,23-1011.00,Lawyers,added,I draft motions and file them with the court
 s17,Advise clients on whether to settle.,23-1011.00,Lawyers,edited,Advising clients on whether to settle
 s42,Draft motions and file them with the court.,23-1011.00,Lawyers,confirmed,Draft motions for filing.
@@ -62,30 +62,41 @@ s42,Draft motions and file them with the court.,23-1011.00,Lawyers,confirmed,Dra
 Optional columns `duty, function, level, verb, object` carry the structured task fields an extractor can
 fill (`prompts/shared/fja_hta.txt` defines them); the chain uses `function` to keep comparisons within one
 worker function when `blocks.by: function` is set. `Atoms.read` also accepts the older column names
-(`session_id`, `task_name`, `onet_code`, `onet_title`).
+(`session_id` or `worker`, `task_name`, `onet_code`, `onet_title`).
 
 ### The build
 
 `agg.build` returns a dict and saves it as `workdir/build.json`. `core` holds one entry per published family:
-its statement, the atoms it covers (`members`), the workers behind them and their count (`prevalence`), plus
-the stamps the chain uses to skip work it has already done. Atoms that reached no family sit in the pile
-(`released`, `declined`, `dropped_atoms`, `thin_members`); `meta.n_atoms` is what the two sides must add up to.
+its statement, the atoms it covers (`members`), the sources behind them and their count (`prevalence`), and
+two stamps. Atoms that reached no family sit in the pile (`released`, `declined`, `dropped_atoms`,
+`thin_members`); `meta.n_atoms` is what the two sides must add up to.
 
 ```json
-{"meta": {"occupation": "Lawyers", "code": "23-1011.00", "n_atoms": 412, "min_workers": 2, "mode": "FRESH"},
+{"meta": {"occupation": "Lawyers", "code": "23-1011.00", "n_atoms": 412, "min_sources": 2, "mode": "FRESH"},
  "core": [
    {"sid": "s_3f9a21c0",
     "statement": "Draft motions, briefs, and other pleadings for filing with the court.",
     "members": ["Draft motions and file them with the court.", "Write appellate briefs.", "..."],
-    "workers": ["s17", "s42", "s63"], "prevalence": 3,
-    "written_for": "…", "written_with": "…"},
+    "sources": ["s17", "s42", "s63"], "prevalence": 3,
+    "written_for": "7c1e…", "written_with": "a9f0…"},
    {"sid": "s_b07d4e11", "statement": "Advise clients on the risks and likely outcomes of settling a dispute.", "...": "..."}
  ],
  "released": ["Order office supplies for the practice.", "..."]}
 ```
 
-`aggregate.statements(build)` is the plain list of statements. A family publishes only with `min_workers`
-distinct workers behind it (2 by default; the postings runs use 3).
+The two stamps are how the chain avoids rewriting what it has already written: `written_for` is the hash of
+the member set the statement was written for, and `written_with` the hash of the writer's prompt. A family
+whose members and prompt both match its stamps is skipped; one whose members changed (an atom was filed in or
+out) or whose prompt changed is written again. A family publishes only with `min_sources` distinct sources
+behind it (2 by default; the postings runs use 3).
+
+`aggregate.statements(build)` is the plain list of statements, in `core` order:
+
+```python
+["Draft motions, briefs, and other pleadings for filing with the court.",
+ "Advise clients on the risks and likely outcomes of settling a dispute.",
+ "Negotiate settlement terms with opposing counsel."]
+```
 
 ### The client and the configuration
 
@@ -104,7 +115,16 @@ models:
 
 An evaluation compares lists of statements on data that was not used to build them. Each step takes the
 lists to compare and the documents they are measured on; nothing is read from disk, and the first key of
-`lists` is treated as ours:
+`lists` is treated as ours. A comparison list is just a list of statements — O*NET's task list for the
+occupation, a list another method built, an older adopted list:
+
+```python
+reference_statements = [
+    "Prepare legal briefs and opinions, and file appeals in state and federal courts of appeal.",
+    "Advise clients concerning business transactions, claim liability, advisability of prosecuting or defending lawsuits, or legal rights and obligations.",
+    "Negotiate settlements of civil disputes.",
+]
+```
 
 ```python
 import aggregate
@@ -125,10 +145,10 @@ print(agg.usage())
 
 ### Held-out documents
 
-A held-out document is a worker's interview or an employer's posting that was not among those the list was
-built from, with the atoms extracted from it the same way the build's atoms were, and any covariates the
-source knows. `split` says whether the document was held out or was part of the build (`construction`);
-the incidence step uses both.
+A held-out document is one source — a worker's interview, an employer's posting — that was not among those
+the list was built from, with the atoms extracted from it the same way the build's atoms were, and any
+covariates known about it. `split` says whether the document was held out or was part of the build
+(`construction`); the incidence step uses both.
 
 ```json
 {"slug": "lawyers", "source": "postings", "docs": [
@@ -142,13 +162,14 @@ the incidence step uses both.
 ### What an evaluation returns
 
 Every step returns a dict the caller saves or renders. Coverage, for instance, gives the share of held-out
-atoms each list describes, the per-list gap with a bootstrap over documents, and the per-atom verdicts:
+atoms each list describes, the gap between lists with a bootstrap over sources (documents), and the per-atom
+verdicts:
 
 ```python
-{"available": True, "n_workers": 40, "n_tasks": 212, "k": {"ours": 47, "reference": 32},
+{"available": True, "n_sources": 40, "n_tasks": 212, "k": {"ours": 47, "reference": 32},
  "cov": {"ours": 0.78, "reference": 0.61},
  "gaps": {"ours-reference": {"est": 0.17, "se": 0.034, "ci": [0.10, 0.24], "p": 0.0001, "n": 40}},
- "per_task": [{"worker": "job_8812", "text": "Draft discovery requests.", "ours": True, "reference": False, "n_cover": {"ours": 2, "reference": 0}}, "..."]}
+ "per_task": [{"source": "job_8812", "text": "Draft discovery requests.", "ours": True, "reference": False, "n_cover": {"ours": 2, "reference": 0}}, "..."]}
 ```
 
 ## Amending an adopted list
@@ -167,7 +188,7 @@ build = agg.build(atoms, standing=final)
 ## How the chain works
 
 cluster → write → split → write → merge / sharpen → refile, repeated until cluster proposes no new family
-that clears the worker floor (cycle 1 always runs in full), capped at `chain.max_cycles`. Every judge
+that clears the source floor (cycle 1 always runs in full), capped at `chain.max_cycles`. Every judge
 verdict is memoised on (model, prompt hash, inputs) under `cache_dir`, so a rebuild is nearly free, and the
 ledgers under `workdir/ledgers/` replay settled hearings. Cache keys are an interface:
 `tests/test_cache_keys.py` pins every recipe to what earlier builds paid for.
@@ -178,7 +199,7 @@ ledgers under `workdir/ledgers/` replay settled hearings. Cache keys are an inte
 |---|---|
 | `aggregate/configs.yml` | every knob and its default |
 | `config.py`, `prompts.py`, `engine.py`, `cache.py`, `context.py` | the infrastructure every stage receives as one `Context` |
-| `atoms.py` | the atoms table |
+| `atoms.py` | the atoms table (`source, task, occupation, title, status, original`) |
 | `judges.py` | `covers`, `overlaps`, `duties`, `dispose`, `merge_or_separate`, `sharpen`, `writing_defects`, `relation`, `embed` |
 | `aggregation/` | `cluster`, `synthesize`, `fusion`, `overlap`, `refile`, `verify`, `blocks`, and `chain.build` |
 | `processing/` | `normalize`, `dedup`, `condense`, `lines` |

@@ -1,4 +1,4 @@
-"""cluster — draw the occupation's task FAMILIES over a pile of atoms, and apply the worker floor.
+"""cluster — draw the occupation's task FAMILIES over a pile of atoms, and apply the source floor.
 
     build = cluster.seed(ctx)                 # fresh: empty core, every atom in the pile
     build = cluster.propose(ctx, build)       # draw over the pile, append the new families (head-only)
@@ -7,7 +7,7 @@
 One call sees every atom in the pile at once (prompts/aggregation/cluster/cluster.txt) and returns
 `[{"head", "members"}]`; the same partitioner serves the first round of a fresh build (the whole corpus) and
 every later round (what refile left). It may leave atoms UNFILED by design — that pile is what the next round
-reads. A family publishes only on min_workers distinct sessions; survivors are appended head-only for
+reads. A family publishes only on min_sources distinct sessions; survivors are appended head-only for
 synthesize to write and the hearings to judge. Draw variance is real (~15-20% per draw), which is why an
 adopted list is amended rather than redrawn.
 """
@@ -123,7 +123,7 @@ def group(ctx, task_labels):
 
 def group_chunked(ctx, pile):
     """The draw over a pile too large for one call (blocks.cluster_chunk). Chunks are k-means over the atoms'
-    embeddings, inside one worker-function block when blocking is on; the chunk HEADS are then drawn once more
+    embeddings, inside one source-function block when blocking is on; the chunk HEADS are then drawn once more
     and heads grouped together union their members. With the knob unset this is exactly `group`."""
     chunk = blocks.cluster_chunk(ctx)
     if not chunk or len(pile) <= chunk:
@@ -164,13 +164,13 @@ def group_chunked(ctx, pile):
     return merged
 
 
-def admit(groups, workers, min_workers):
-    """Apply the worker floor -> (kept, thin). THE ONE DEFINITION of the floor."""
+def admit(groups, sources, min_sources):
+    """Apply the source floor -> (kept, thin). THE ONE DEFINITION of the floor."""
     kept, thin = [], []
     for g in groups:
-        w = sorted(set().union(*(set(workers[m]) for m in g["members"])))
-        rec = {"sid": families.new_sid(), "head": g["head"], "members": g["members"], "workers": w, "prevalence": len(w)}
-        (kept if len(w) >= min_workers else thin).append(rec)
+        w = sorted(set().union(*(set(sources[m]) for m in g["members"])))
+        rec = {"sid": families.new_sid(), "head": g["head"], "members": g["members"], "sources": w, "prevalence": len(w)}
+        (kept if len(w) >= min_sources else thin).append(rec)
     return kept, thin
 
 
@@ -178,7 +178,7 @@ def seed(ctx) -> dict:
     """A FRESH seed artifact: empty core, every corpus atom in the pile."""
     atoms = ctx.atoms
     return {"meta": {"occupation": ctx.occupation, "code": atoms.code, "title": atoms.title,
-                     "model": ctx.model("cluster"), "effort": ctx.effort("cluster"), "min_workers": ctx.min_workers,
+                     "model": ctx.model("cluster"), "effort": ctx.effort("cluster"), "min_sources": ctx.min_sources,
                      "n_atoms": len(atoms), "prompt": sha256(ctx.prompt("cluster", occupation="$OCC"))[:12]},
             "core": [], "released": sorted(atoms.tasks)}
 
@@ -189,7 +189,7 @@ def propose(ctx, build) -> dict:
     atoms ingested since the seed enter the pile, members the corpus no longer has leave their family.
     Mutates and returns build, with `draw_pile_log` for this round and `draw_log` appended."""
     core = build["core"]
-    W = ctx.atoms.workers
+    W = ctx.atoms.sources
     corpus = set(W)
     known = {m for f in core for m in f["members"]} | {a for k in families.LEFTOVERS for a in build.get(k) or []}
     new = sorted(corpus - known)
@@ -210,13 +210,13 @@ def propose(ctx, build) -> dict:
     founded = []
     if len(pile) >= 2:
         groups = group_chunked(ctx, pile)
-        fams, _thin = admit(groups, {m: set(W.get(m) or ()) for m in pile}, ctx.min_workers)
+        fams, _thin = admit(groups, {m: set(W.get(m) or ()) for m in pile}, ctx.min_sources)
         consumed = set()
         for f in fams:
             ms = sorted(set(f["members"]) - consumed - filed)
             if len(ms) < 2:
                 continue
-            core.append({"sid": families.new_sid(), "head": f["head"], "members": ms, "workers": f["workers"],
+            core.append({"sid": families.new_sid(), "head": f["head"], "members": ms, "sources": f["sources"],
                          "prevalence": f["prevalence"], "founded_by": "cluster --over-pile",
                          **({"function": blocks.function_of(ctx, ms), "duty": blocks.duty_of(ctx, ms)}
                             if blocks.block_by(ctx) else {})})

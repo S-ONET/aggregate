@@ -2,13 +2,13 @@
 draw unions families split across chunks."""
 from aggregate import families
 from aggregate.aggregation import blocks, cluster
-from conftest import atoms_from_workers
+from conftest import atoms_from_sources
 
 
 def _art():
     return {"meta": {"n_atoms": 4},
-            "core": [{"sid": "s_a", "head": "A", "members": ["a1", "a2"], "workers": ["w1", "w2"], "prevalence": 2},
-                     {"sid": "s_b", "head": "B", "members": ["b1"], "workers": ["w3"], "prevalence": 1}],
+            "core": [{"sid": "s_a", "head": "A", "members": ["a1", "a2"], "sources": ["w1", "w2"], "prevalence": 2},
+                     {"sid": "s_b", "head": "B", "members": ["b1"], "sources": ["w3"], "prevalence": 1}],
             "released": ["p1"]}
 
 
@@ -18,8 +18,8 @@ def _accounted(art):
     return len(filed) + len(pile) == art["meta"]["n_atoms"] and not (filed & pile)
 
 
-def _ctx(agg, workers):
-    return agg.context(atoms_from_workers(workers))
+def _ctx(agg, sources):
+    return agg.context(atoms_from_sources(sources))
 
 
 def test_new_corpus_atoms_enter_the_pile(agg, monkeypatch):
@@ -51,8 +51,8 @@ _CORPUS = {"a1": {"w1"}, "a2": {"w2"}, "b1": {"w3"}, "b2": {"w4"}, "p1": {"w5"},
 
 def _art8():
     return {"meta": {"n_atoms": 8},
-            "core": [{"sid": "s1", "statement": "Do alpha work.", "head": "Do alpha work.", "members": ["a1", "a2"], "workers": ["w1", "w2"], "prevalence": 2},
-                     {"sid": "s2", "statement": "Do beta work.", "head": "Do beta work.", "members": ["b1", "b2"], "workers": ["w3", "w4"], "prevalence": 2}],
+            "core": [{"sid": "s1", "statement": "Do alpha work.", "head": "Do alpha work.", "members": ["a1", "a2"], "sources": ["w1", "w2"], "prevalence": 2},
+                     {"sid": "s2", "statement": "Do beta work.", "head": "Do beta work.", "members": ["b1", "b2"], "sources": ["w3", "w4"], "prevalence": 2}],
             "released": ["p1", "p2", "p3", "p4"]}
 
 

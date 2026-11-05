@@ -114,7 +114,7 @@ def _attested(ctx, head, following):
 
 def _tag_items(ctx, atoms):
     """The activity list with a stable per-worker tag: "- <atom>  [W2]"."""
-    W = ctx.atoms.workers
+    W = ctx.atoms.sources
     ids = sorted({w for a in atoms for w in W.get(a, ())})
     tag = {w: f"W{i}" for i, w in enumerate(ids, 1)}
     return "\n".join(f"- {a}" + (f"  [{']['.join(tag[w] for w in sorted(W.get(a, ())))}]" if W.get(a) else "")

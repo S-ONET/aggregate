@@ -14,7 +14,7 @@ ROWS = [("s1", "99-9999.00", "Keytest Occupation", "added", "Draft motions for c
         ("s2", "99-9999.00", "Keytest Occupation", "added", "Draft motions for court.", "", "litigation", "data"),
         ("s2", "99-9999.00", "Keytest Occupation", "added", "Advise clients on contracts.", "", "advice", "people"),
         ("s3", "99-9999.00", "Keytest Occupation", "added", "File pleadings with the clerk.", "", "litigation", "data")]
-COLS = ["worker", "occupation", "title", "status", "task", "original", "duty", "function"]
+COLS = ["source", "occupation", "title", "status", "task", "original", "duty", "function"]
 
 
 class _Fail:
@@ -63,12 +63,12 @@ def no_live_calls(ctx, monkeypatch):
     return ctx
 
 
-def atoms_from_workers(workers, title="Keytest Occupation", code="99-9999.00", meta=None):
-    """{atom: {worker ids}} -> Atoms (one row per (worker, atom)); `meta` adds FJA columns per atom."""
+def atoms_from_sources(sources, title="Keytest Occupation", code="99-9999.00", meta=None):
+    """{atom: {source ids}} -> Atoms (one row per (source, atom)); `meta` adds FJA columns per atom."""
     rows = []
-    for a, ws in workers.items():
+    for a, ws in sources.items():
         for w in sorted(ws):
-            r = {"worker": w, "occupation": code, "title": title, "status": "added", "task": a, "original": ""}
+            r = {"source": w, "occupation": code, "title": title, "status": "added", "task": a, "original": ""}
             if meta:
                 r.update(meta.get(a, {"function": "", "duty": ""}))
             rows.append(r)

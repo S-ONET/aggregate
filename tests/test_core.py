@@ -8,9 +8,9 @@ from aggregate.cache import Cache, NoCache
 
 
 def test_config_overlays_file_then_overrides(tmp_path):
-    (tmp_path / "c.yml").write_text("min_workers: 3\nmodels:\n  cluster: {model: gpt-5.5}\n")
+    (tmp_path / "c.yml").write_text("min_sources: 3\nmodels:\n  cluster: {model: gpt-5.5}\n")
     cfg = Config.load(tmp_path / "c.yml", overrides={"chain": {"max_cycles": 1}}, seed=7)
-    assert cfg.min_workers == 3 and cfg.models.cluster.model == "gpt-5.5" and cfg.models.cluster.effort == "medium"
+    assert cfg.min_sources == 3 and cfg.models.cluster.model == "gpt-5.5" and cfg.models.cluster.effort == "medium"
     assert cfg.chain.max_cycles == 1 and cfg.seed == 7 and cfg.get("batch.items") is False
     assert cfg.model("embed") == "text-embedding-3-large" and cfg.effort("filter") is None
 
@@ -48,9 +48,9 @@ def test_cache_memo_nocache_and_union(tmp_path):
 def test_atoms_accepts_legacy_columns_and_writes_canonical(tmp_path):
     a = Atoms([{"session_id": "s1", "onet_code": "1", "onet_title": "T", "status": "added", "task_name": "Do x.", "original_task_name": ""},
                {"session_id": "s2", "onet_code": "1", "onet_title": "T", "status": "added", "task_name": "Do x.", "original_task_name": ""}])
-    assert a.tasks == ["Do x."] and a.workers["Do x."] == frozenset({"s1", "s2"}) and a.title == "T" and a.code == "1"
+    assert a.tasks == ["Do x."] and a.sources["Do x."] == frozenset({"s1", "s2"}) and a.title == "T" and a.code == "1"
     a.write(tmp_path / "a.csv")
-    assert (tmp_path / "a.csv").read_text().splitlines()[0] == "worker,task,occupation,title,status,original"
+    assert (tmp_path / "a.csv").read_text().splitlines()[0] == "source,task,occupation,title,status,original"
     a.write(tmp_path / "b.csv", legacy=True)
     assert "session_id" in (tmp_path / "b.csv").read_text().splitlines()[0]
     assert Atoms.read(tmp_path / "b.csv").records() == a.records()
@@ -59,7 +59,7 @@ def test_atoms_accepts_legacy_columns_and_writes_canonical(tmp_path):
 def test_docset_splits_tasks_and_covariates(tmp_path):
     d = DocSet([{"id": "d1", "split": "heldout", "atoms": ["A", "A", "B"], "meta": {"salary": 10, "title": "x"}},
                 {"id": "d2", "split": "construction", "atoms": ["C"], "meta": {"salary": 20, "year": 2024}}], slug="s")
-    assert [t["text"] for t in d.tasks("heldout")] == ["A", "B"] and d.tasks("construction") == [{"worker": "d2", "text": "C"}]
+    assert [t["text"] for t in d.tasks("heldout")] == ["A", "B"] and d.tasks("construction") == [{"source": "d2", "text": "C"}]
     assert d.covariates() == ["salary", "year"]
     d.write(tmp_path / "docs.json")
     assert len(DocSet.read(tmp_path / "docs.json").construction) == 1

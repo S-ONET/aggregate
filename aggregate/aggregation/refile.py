@@ -8,7 +8,7 @@ the pile alike: FILE moves or keeps the atom (stamps clear so the writer re-gate
 off-home atom and leaves a pile atom. An atom leaves its family only when coverage AND the disposer agree, and
 the disposer must say the same thing TWICE before anything moves (the second draw is paid only when the first
 proposes a change). Never founds a family; the pile it leaves is what the next cluster step draws over. Then
-the worker floor is applied as a placement rule. filed + pile == n_atoms throughout.
+the source floor is applied as a placement rule. filed + pile == n_atoms throughout.
 """
 from __future__ import annotations
 
@@ -121,7 +121,7 @@ def place(ctx, build):
         return build, report
     heard = blocks.publishable_pile(ctx, pile)
     if len(heard) != len(pile):
-        print(f"  scope: {len(heard)} of {len(pile)} pile atoms have >= 2 workers and are heard")
+        print(f"  scope: {len(heard)} of {len(pile)} pile atoms have >= 2 sources and are heard")
     missing, off_home = excluded(ctx, core, heard)
     report = {"missing": missing, "off_home": {a: {"owner": o, "covered_by": h} for a, (o, h) in off_home.items()}}
     log["off_home"] = sum(1 for a, (own, _) in off_home.items() if own)
@@ -180,12 +180,12 @@ def place(ctx, build):
     if released:
         build["released"] = sorted(set(build.get("released") or []) | set(released))
         log["released"] = len(released)
-    W = ctx.atoms.workers
+    W = ctx.atoms.sources
     keep, demoted = [], []
     for f in core:
         if not f["members"]:
             continue
-        if len({w for m in f["members"] for w in (W.get(m) or ())}) >= ctx.min_workers:
+        if len({w for m in f["members"] for w in (W.get(m) or ())}) >= ctx.min_sources:
             keep.append(f)
         else:
             demoted.append(f)

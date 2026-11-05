@@ -3,7 +3,7 @@ import json
 
 from aggregate import families
 from aggregate.aggregation import overlap, synthesize
-from conftest import atoms_from_workers
+from conftest import atoms_from_sources
 
 A = "Draft trial motions and briefs for filing with the court."
 B = "Draft appellate briefs and petitions for review."
@@ -32,8 +32,8 @@ def test_every_merge_pays_the_second_draw():
 
 
 def test_pass_through_rows_keep_continuity_stamps(agg):
-    ctx = agg.context(atoms_from_workers({"a1": {"w1"}, "a2": {"w2"}}))
-    core = [{"statement": "Do alpha work.", "head": "Do alpha work.", "members": ["a1", "a2"], "workers": ["w1", "w2"],
+    ctx = agg.context(atoms_from_sources({"a1": {"w1"}, "a2": {"w2"}}))
+    core = [{"statement": "Do alpha work.", "head": "Do alpha work.", "members": ["a1", "a2"], "sources": ["w1", "w2"],
              "prevalence": 2, "written_for": "stampF", "principles_with": "h1"}]
     fams, log, lost = overlap.apply_merges(ctx, core, [], [])
     assert fams[0]["written_for"] == "stampF" and fams[0]["principles_with"] == "h1" and fams[0]["prevalence"] == 2
@@ -42,7 +42,7 @@ def test_pass_through_rows_keep_continuity_stamps(agg):
 # ── the SEPARATE + KEEP gate ───────────────────────────────────────────────────────────────────────
 
 def _harness(agg, monkeypatch, verdicts):
-    ctx = agg.context(atoms_from_workers({"a1": {"w1"}, "a2": {"w2"}, "b1": {"w3"}, "b2": {"w4"}}))
+    ctx = agg.context(atoms_from_sources({"a1": {"w1"}, "a2": {"w2"}, "b1": {"w3"}, "b2": {"w4"}}))
     seen = {}
     monkeypatch.setattr(overlap, "resolve_component", lambda ctx, nodes, edges, m_of: verdicts)
 

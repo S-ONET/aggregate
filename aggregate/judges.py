@@ -386,7 +386,7 @@ class Judges:
         idx = {t: i for i, t in enumerate(nodes, 1)}
         tmpl = self.ctx.prompt("resolve_group", occupation=self.ctx.occupation)
         tasks = "\n".join(f"{idx[t]} — {t} — " + "; ".join(sorted(members_of[t])) for t in nodes)
-        W = self.ctx.atoms.workers
+        W = self.ctx.atoms.sources
         wk = {t: set().union(set(), *[set(W.get(m, ())) for m in members_of[t]]) for t in nodes}
 
         def wline(a, b):

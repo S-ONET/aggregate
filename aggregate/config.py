@@ -1,7 +1,7 @@
 """Config — every knob of the package, from the packaged configs.yml overlaid with a user file and overrides.
 
     cfg = Config.load()                              # the defaults
-    cfg = Config.load("my.yml", min_workers=3)       # a file, then keyword overrides (top-level keys)
+    cfg = Config.load("my.yml", min_sources=3)       # a file, then keyword overrides (top-level keys)
     cfg = Config.load(overrides={"models": {"cluster": {"model": "gpt-5.5"}}})
     cfg.models.cluster.model ; cfg.chain.max_cycles ; cfg.get("batch.items")
 

@@ -2,13 +2,13 @@
 from aggregate import families
 from aggregate.aggregation import synthesize
 from aggregate.lib import sha256
-from conftest import atoms_from_workers
+from conftest import atoms_from_sources
 
 TEMPLATE = "TEMPLATE $items $siblings"
 
 
 def _fam(**kw):
-    return {"head": "h", "members": ["a1", "a2"], "workers": ["w1", "w2"], "prevalence": 2, **kw}
+    return {"head": "h", "members": ["a1", "a2"], "sources": ["w1", "w2"], "prevalence": 2, **kw}
 
 
 def _run(ctx, monkeypatch, fams):
@@ -109,12 +109,12 @@ def test_no_reference_means_no_exception_and_an_umbrella(ctx, monkeypatch):
 # ── the atom list and the flag ─────────────────────────────────────────────────────────────────────
 
 def test_tag_items_accepts_a_list(agg):
-    ctx = agg.context(atoms_from_workers({"a1": {"w1"}, "a2": {"w2"}}))
+    ctx = agg.context(atoms_from_sources({"a1": {"w1"}, "a2": {"w2"}}))
     assert synthesize._tag_items(ctx, ["a2", "a1"]).splitlines() == ["- a1  [W1]", "- a2  [W2]"]
 
 
 def test_statement_reaches_the_writer_with_list_members(agg, monkeypatch):
-    ctx = agg.context(atoms_from_workers({"a1": {"w1"}}))
+    ctx = agg.context(atoms_from_sources({"a1": {"w1"}}))
     monkeypatch.setattr(ctx.prompts, "load", lambda *a, **k: TEMPLATE)
     monkeypatch.setattr(synthesize, "covered", lambda c, s, a: [True] * len(a))
     monkeypatch.setattr(synthesize, "_quality_gate", lambda c, stmt, *a, **k: stmt)

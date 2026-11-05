@@ -41,7 +41,7 @@ class DocSet:
         return [d for d in self.docs if d.get("split") == "construction"]
 
     def tasks(self, split="heldout") -> list[dict]:
-        """[{worker, text}] — one row per (document, distinct atom) of the split."""
+        """[{source, text}] — one row per (document, distinct atom) of the split."""
         out = []
         for d in (self.heldout if split == "heldout" else self.construction if split == "construction" else self.docs):
             seen = set()
@@ -49,7 +49,7 @@ class DocSet:
                 t = " ".join(str(t).split()).strip()
                 if t and t not in seen:
                     seen.add(t)
-                    out.append({"worker": d["id"], "text": t})
+                    out.append({"source": d["id"], "text": t})
         return out
 
     def covariates(self) -> list[str]:

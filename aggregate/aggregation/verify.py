@@ -5,7 +5,7 @@
   atoms       filed + pile == n_atoms, and no member filed under two families
   ids         every family carries a unique sid
   duplicates  no statement text twice
-  corpus      every filed member is a real atom; prevalence equals the distinct workers behind the members;
+  corpus      every filed member is a real atom; prevalence equals the distinct sources behind the members;
               every family clears the floor
   fusion      (report-only) every published statement has a duties verdict for its CURRENT members
 """
@@ -22,8 +22,8 @@ def _stmt(f):
     return f.get("statement") or f.get("head") or ""
 
 
-def check(art, workers=None, min_workers=2):
-    """-> [failure strings]. `workers` is the atom -> sessions map; None skips the corpus check."""
+def check(art, sources=None, min_sources=2):
+    """-> [failure strings]. `sources` is the atom -> sessions map; None skips the corpus check."""
     bad, core = [], _core(art)
     filed = [m for f in core for m in (f.get("members") or [])]
     pile = [a for k in families.LEFTOVERS for a in (art.get(k) or ())]
@@ -44,18 +44,18 @@ def check(art, workers=None, min_workers=2):
         if s in seen:
             bad.append(f"duplicates: {s[:70]!r} appears twice")
         seen.add(s)
-    if workers is not None:
+    if sources is not None:
         for f in core:
             mem = f.get("members") or []
-            unknown = [m for m in mem if m not in workers]
+            unknown = [m for m in mem if m not in sources]
             if unknown:
                 bad.append(f"corpus: {len(unknown)} member(s) of {_stmt(f)[:50]!r} are not atoms")
                 break
-            real = len({w for m in mem for w in workers.get(m, ())})
+            real = len({w for m in mem for w in sources.get(m, ())})
             if f.get("prevalence") is not None and f["prevalence"] != real:
                 bad.append(f"prevalence: {_stmt(f)[:50]!r} says {f['prevalence']}, members give {real}")
-            if real < min_workers:
-                bad.append(f"floor: {_stmt(f)[:50]!r} rests on {real} worker(s), floor is {min_workers}")
+            if real < min_sources:
+                bad.append(f"floor: {_stmt(f)[:50]!r} rests on {real} source(s), floor is {min_sources}")
     return bad
 
 
@@ -79,7 +79,7 @@ def siblings(arts):
 
 def invariants(ctx, build):
     """Every structural check against the context's atoms -> [failure strings] ([] = ok)."""
-    return check(build, ctx.atoms.workers if ctx.atoms is not None else None, ctx.min_workers)
+    return check(build, ctx.atoms.sources if ctx.atoms is not None else None, ctx.min_sources)
 
 
 def summary(build) -> str:

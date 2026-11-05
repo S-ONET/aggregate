@@ -208,7 +208,7 @@ def route(ctx, rows, by_mem=None):
 def apply_merges(ctx, core, mg, partitions=()):
     """Combine each merge group into one family (its statement written from the resolver's seed) -> (fams, log, lost)."""
     by = {c["statement"]: c for c in core}
-    W = ctx.atoms.workers
+    W = ctx.atoms.sources
 
     def cov(stmt, atoms):
         return sum(synthesize.covered(ctx, stmt, atoms))
@@ -224,7 +224,7 @@ def apply_merges(ctx, core, mg, partitions=()):
             lost.append({"from": g, "statement": stmt, "cov_before": before, "cov_after": after, "n_atoms": len(mem)})
         w = sorted({x for m in mem for x in W.get(m, ())})
         fams.append({"sid": families.new_sid(), "sid_merged_from": [by[s].get("sid") for s in g if by.get(s)],
-                     "head": stmt, "statement": stmt, "members": mem, "workers": w, "prevalence": len(w),
+                     "head": stmt, "statement": stmt, "members": mem, "sources": w, "prevalence": len(w),
                      "n_atoms": len(mem), "merged_from": list(g)})
         merged.update(g)
         log.append({"into": stmt, "from": g, "n_members": len(mem), "prevalence": len(w), "cov_before": before, "cov_after": after})
@@ -232,7 +232,7 @@ def apply_merges(ctx, core, mg, partitions=()):
         if c["statement"] in merged:
             continue
         fams.append({**c, "head": c["statement"], "statement": c["statement"], "members": sorted(set(c.get("members") or [])),
-                     "workers": sorted(set(c.get("workers") or [])), "prevalence": len(set(c.get("workers") or []))})
+                     "sources": sorted(set(c.get("sources") or [])), "prevalence": len(set(c.get("sources") or []))})
     families.recount(ctx, fams)
     return fams, log, lost
 

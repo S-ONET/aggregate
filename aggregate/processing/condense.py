@@ -1,11 +1,11 @@
-"""condense — collapse statements that render the same work into one atom with the union of their workers.
+"""condense — collapse statements that render the same work into one atom with the union of their sources.
 
     atoms, mapping = processing.condense(ctx, atoms, tau=0.92, cap=50)
 
 Two merges, both deterministic given the embeddings: a KEY merge on (function, verb lemma, object head noun)
-for atoms carrying FJA fields, then a NEAR-DUPLICATE merge within one worker function at embedding cosine >=
+for atoms carrying FJA fields, then a NEAR-DUPLICATE merge within one source function at embedding cosine >=
 tau, capped at `cap` members per component. The representative text of a component is the most prevalent
-member's (most distinct workers), the shortest among equals. `mapping` records every merged original.
+member's (most distinct sources), the shortest among equals. `mapping` records every merged original.
 """
 from __future__ import annotations
 
@@ -71,7 +71,7 @@ def condense(ctx, atoms, tau=0.92, cap=50, embed=None):
     for r in rows:
         t = (r.get("task") or "").strip()
         if t:
-            by_text[t]["sessions"].add(r["worker"])
+            by_text[t]["sessions"].add(r["source"])
             by_text[t]["meta"].append(r)
     texts = sorted(by_text)
     uf = _UnionFind(texts)
@@ -117,9 +117,9 @@ def condense(ctx, atoms, tau=0.92, cap=50, embed=None):
             if t != rep:
                 mapping.append({"original": t, "representative": rep, "reason": reasons.get(t, reasons.get(rep, ""))})
         for sid in sorted(sessions):
-            out_rows.append({"worker": sid, "occupation": base.get("occupation", ""), "title": base.get("title", ""),
+            out_rows.append({"source": sid, "occupation": base.get("occupation", ""), "title": base.get("title", ""),
                              "status": "condensed", "task": rep,
                              "original": "" if len(members) == 1 else f"{len(members)} statements",
                              **{k: maj(k) for k in FJA}})
-    out_rows.sort(key=lambda r: (r["task"], r["worker"]))
+    out_rows.sort(key=lambda r: (r["task"], r["source"]))
     return Atoms(out_rows), mapping

@@ -3,7 +3,7 @@ import inspect
 
 from aggregate.aggregation import blocks, fusion
 from aggregate.lib import sha256
-from conftest import atoms_from_workers
+from conftest import atoms_from_sources
 
 ATOM_WORKERS = {"a": {"w1", "w2"}, "b": {"w1", "w2"}, "c": {"w3"}}
 FLAG = {"principle": "fusion", "confidence": 0.97, "trigger": "Do X and do Y"}
@@ -38,7 +38,7 @@ def _accounted(art):
 
 def test_a_thin_parts_atoms_are_recorded_not_discarded(agg):
     members = ["a1", "a2", "a3", "a4"]
-    ctx = agg.context(atoms_from_workers({m: {f"w{i}"} for i, m in enumerate(members)}))
+    ctx = agg.context(atoms_from_sources({m: {f"w{i}"} for i, m in enumerate(members)}))
     row = _row(members=members, parts=[{"statement": "Published part.", "members": ["a1", "a2"], "publishable": True},
                                        {"statement": "Thin part.", "members": ["a3"], "publishable": False},
                                        {"statement": "(not covered by any proposed part)", "members": ["a4"], "publishable": False}])
@@ -48,7 +48,7 @@ def test_a_thin_parts_atoms_are_recorded_not_discarded(agg):
 
 def test_overlap_atoms_are_filed_not_double_counted(agg):
     members = ["a1", "a2", "a3"]
-    ctx = agg.context(atoms_from_workers({m: {f"w{i}"} for i, m in enumerate(members)}))
+    ctx = agg.context(atoms_from_sources({m: {f"w{i}"} for i, m in enumerate(members)}))
     parts = [{"statement": "Part one.", "members": ["a1"], "publishable": True},
              {"statement": "Part two.", "members": ["a2"], "publishable": True},
              {"statement": "(described by MORE THAN ONE proposed part)", "members": ["a3"], "publishable": False}]
@@ -58,20 +58,20 @@ def test_overlap_atoms_are_filed_not_double_counted(agg):
 
 
 def test_the_inputs_leftovers_are_carried(agg):
-    ctx = agg.context(atoms_from_workers({"a1": {"w1"}}))
+    ctx = agg.context(atoms_from_sources({"a1": {"w1"}}))
     art, _ = fusion.apply_splits(ctx, [{"verdict": "keep", "statement": "Kept.", "members": ["a1"]}], {},
                                  {"declined": ["d1", "d2"], "thin_members": ["t1"]})
     assert set(art["declined"]) == {"d1", "d2"} and set(art["thin_members"]) == {"t1"} and _accounted(art) == {"a1", "d1", "d2", "t1"}
 
 
 def test_apply_splits_rehomes_unshown_members(agg, monkeypatch):
-    ctx = agg.context(atoms_from_workers({m: {m[0]} for m in ("p1", "p2", "q1", "q2", "u1")}))
+    ctx = agg.context(atoms_from_sources({m: {m[0]} for m in ("p1", "p2", "q1", "q2", "u1")}))
     ctx.config["blocks"]["member_cap"] = 4
     monkeypatch.setattr(blocks, "assign_nearest", lambda ctx, orph, parts: {o: (0 if o.startswith("p") else 1) for o in orph})
 
     def row(shown):
         return {"statement": "Do P and Q", "members": ["p1", "p2", "q1", "q2", "u1"], "shown": shown, "n_members": 5, "prevalence": 3,
-                "verdict": "split", "basis": "exclusive-workers", "fused": True,
+                "verdict": "split", "basis": "exclusive-sources", "fused": True,
                 "parts": [{"statement": "Do P", "members": ["p1", "p2"], "publishable": True},
                           {"statement": "Do Q", "members": ["q1", "q2"], "publishable": True}], "_shared_hits": {}}
     art, log = fusion.apply_splits(ctx, [row(["p1", "p2", "q1", "q2"])], {}, {})
@@ -81,7 +81,7 @@ def test_apply_splits_rehomes_unshown_members(agg, monkeypatch):
 
 
 def test_flag_survives_a_pass_through_split(agg):
-    ctx = agg.context(atoms_from_workers({"a": {"w1"}, "b": {"w2"}}))
+    ctx = agg.context(atoms_from_sources({"a": {"w1"}, "b": {"w2"}}))
     row = {"verdict": "keep", "statement": "Do X and do Y.", "members": ["a", "b"], "form_flag": FLAG, "written_for": "f", "written_with": "w", "sid": "s_1"}
     art, _ = fusion.apply_splits(ctx, [row], {})
     assert art["core"][0]["form_flag"] == FLAG and art["core"][0]["sid"] == "s_1"
@@ -136,7 +136,7 @@ def test_ledger_rows_record_the_statement_and_members_they_judged():
 
 # ── concurrence ────────────────────────────────────────────────────────────────────────────────────
 
-def _split_row(basis="shared-workers", corroboration=(), standing=False):
+def _split_row(basis="shared-sources", corroboration=(), standing=False):
     return {"verdict": "split", "statement": "Parent statement.", "basis": basis, "fused": True, "corroboration": list(corroboration),
             "standing": standing, "members": ["a1", "a2", "a3", "a4"], "n_members": 4, "prevalence": 4, "parts": [], "feedback": "",
             "reason": "", "outcomes": [], "_shared_hits": {}}
@@ -151,7 +151,7 @@ def test_second_signals_skip_the_second_draw(ctx):
     _on(ctx)
     calls = []
     draw = lambda r: calls.append(r) or {"one_duty": False}
-    for rows in ([_split_row(basis="exclusive-workers")], [_split_row(corroboration=["GATE 2 repair refused"])], [_split_row(standing=True)]):
+    for rows in ([_split_row(basis="exclusive-sources")], [_split_row(corroboration=["GATE 2 repair refused"])], [_split_row(standing=True)]):
         fusion.concurrence(ctx, rows, draw)
         assert rows[0]["verdict"] == "split"
     assert not calls

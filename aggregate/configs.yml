@@ -5,7 +5,7 @@
 # compatible gateway. Changing a MODEL or a PROMPT changes every cache key of that judge: a cold re-spend.
 
 seed: 0                      # best-effort reproducibility on a cache miss
-min_workers: 2               # the publishing floor: a family needs this many distinct workers
+min_sources: 2               # the publishing floor: a family needs this many distinct sources (workers, employers)
 cache_dir: cache/aggregation # verdict cache (one JSON per section) and the embedding store; relative to the workdir
 prompt_set: ""               # "fja": <name>_fja.txt is tried before <name>.txt for every prompt
 prompt_dirs: []              # extra prompt trees searched after the package's own (a source's prompts)
@@ -58,7 +58,7 @@ blocks:                      # the postings-scale knobs; all off = an interview 
   by: ""                     # "function": compare only within one FJA worker function
   member_cap: 0              # members shown to the writer and judges (0 = all)
   cluster_chunk: 0           # k-means chunks for a large pile (0 = one draw)
-  refile_scope: ""           # "publishable": the disposer hears pile atoms with >= 2 workers only
+  refile_scope: ""           # "publishable": the disposer hears pile atoms with >= 2 sources only
 
 evaluate:
   coverage: {topk: 5, tau: 0.30, B: 10000}

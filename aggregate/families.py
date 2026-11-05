@@ -4,7 +4,7 @@ A family is its MEMBER SET. `key` is the ledger/stamp identity every stage uses 
 continuity stamps); `same` is the 60% mutual-overlap test that lets an adopted statement survive a rewording or
 one filed atom; `registry` / `match` look an adopted statement up for a member set. `new_sid` mints a statement's
 permanent id (random, never derived: a derived id changes with what it derives from). `recount` re-derives
-workers and prevalence from members; `leftovers` is what a stage must splat into its output or lose atoms.
+sources and prevalence from members; `leftovers` is what a stage must splat into its output or lose atoms.
 """
 from __future__ import annotations
 
@@ -71,16 +71,16 @@ def pile(build) -> list[str]:
 
 
 def recount(ctx, fams):
-    """Recompute `workers` and `prevalence` FROM `members`, in place, and re-derive the block stamps. -> fams."""
+    """Recompute `sources` and `prevalence` FROM `members`, in place, and re-derive the block stamps. -> fams."""
     from .aggregation import blocks
-    W = ctx.atoms.workers
+    W = ctx.atoms.sources
     unmatched = sorted({m for f in fams for m in (f.get("members") or []) if m not in W})
     if unmatched:
         print(f"  recount: {len(unmatched)} member(s) not found in the atom corpus -- prevalence for their "
               f"families is UNDERSTATED: {unmatched[0][:70]}", file=sys.stderr)
     for f in fams:
         w = sorted({x for m in (f.get("members") or []) for x in W.get(m, ())})
-        f["workers"], f["prevalence"] = w, len(w)
+        f["sources"], f["prevalence"] = w, len(w)
         if blocks.block_by(ctx):
             f["function"] = blocks.function_of(ctx, f.get("members") or [])
             f["duty"] = blocks.duty_of(ctx, f.get("members") or [])

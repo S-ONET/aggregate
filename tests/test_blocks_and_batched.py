@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from aggregate.aggregation import blocks
-from conftest import atoms_from_workers
+from conftest import atoms_from_sources
 
 
 def _unit(v):
@@ -22,14 +22,14 @@ def test_same_block_only_separates_two_known_functions(ctx):
 
 
 def test_function_of_reads_the_atoms_meta(agg):
-    ctx = agg.context(atoms_from_workers({"a": {"w1"}, "b": {"w2"}}, meta={"a": {"function": "data", "duty": "x"}, "b": {"function": "data", "duty": "y"}}))
+    ctx = agg.context(atoms_from_sources({"a": {"w1"}, "b": {"w2"}}, meta={"a": {"function": "data", "duty": "x"}, "b": {"function": "data", "duty": "y"}}))
     assert blocks.function_of(ctx, ["a", "b"]) == ""
     ctx.config["blocks"]["by"] = "function"
     assert blocks.function_of(ctx, ["a", "b"]) == "data" and blocks.duty_of(ctx, ["a", "b"]) in ("x", "y")
 
 
 def test_cap_members_prefers_prevalence_then_centrality(agg, monkeypatch):
-    ctx = agg.context(atoms_from_workers({"a": {"w1"}, "b": {"w1", "w2"}, "c": {"w1"}, "d": {"w3"}}))
+    ctx = agg.context(atoms_from_sources({"a": {"w1"}, "b": {"w1", "w2"}, "c": {"w1"}, "d": {"w3"}}))
     ctx.config["blocks"]["member_cap"] = 2
     monkeypatch.setattr(ctx.judges, "embed", lambda ts: {"a": _unit([1, 0]), "b": _unit([1, 0.1]), "c": _unit([0.9, 0.3]), "d": _unit([0, 1])})
     assert blocks.cap_members(ctx, ["a", "b", "c", "d"]) == ["b", "c"]
@@ -38,7 +38,7 @@ def test_cap_members_prefers_prevalence_then_centrality(agg, monkeypatch):
 
 
 def test_kmeans_chunks_assign_nearest_and_publishable_pile(agg, monkeypatch):
-    ctx = agg.context(atoms_from_workers({"x0": {"w1", "w2"}, "y0": {"w1"}}))
+    ctx = agg.context(atoms_from_sources({"x0": {"w1", "w2"}, "y0": {"w1"}}))
     vec = {f"x{i}": _unit([1, 0.01 * i]) for i in range(5)}
     vec.update({f"y{i}": _unit([0.01 * i, 1]) for i in range(5)})
     monkeypatch.setattr(ctx.judges, "embed", lambda ts: {t: vec[t] for t in ts})

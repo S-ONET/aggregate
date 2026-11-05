@@ -1,7 +1,7 @@
 """blocks — the scale knobs for a large build: FJA-function blocking, member caps, chunked draws (configs.yml
 `blocks`). Every knob is OFF by default, so an interview build is byte-identical with none of them:
 
-    blocks.by = function     atoms and families carry a worker-function orientation (data / people / things, the
+    blocks.by = function     atoms and families carry a source-function orientation (data / people / things, the
                              atoms' `function` column); overlap pairs, disposer candidate lists, writer siblings and
                              cluster chunks stay inside one block
     blocks.member_cap = 40   the writer, the coverage check, duties and merge_or_separate see at most this many
@@ -9,7 +9,7 @@
                              still key on the FULL member set
     blocks.cluster_chunk     a pile larger than this is drawn in embedding-k-means chunks, then the chunk heads are
                              drawn once more to union families split across chunks
-    blocks.refile_scope = publishable   the disposer hears pile atoms only when two or more workers report them
+    blocks.refile_scope = publishable   the disposer hears pile atoms only when two or more sources report them
 """
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def refile_scope(ctx) -> str:
 
 
 def function_of(ctx, members) -> str:
-    """The majority worker-function of a family's members, or "" when unknown or blocking is off."""
+    """The majority source-function of a family's members, or "" when unknown or blocking is off."""
     if block_by(ctx) != "function":
         return ""
     meta = ctx.atoms.meta
@@ -63,7 +63,7 @@ def cap_members(ctx, atoms, cap=None):
     if not cap or len(atoms) <= cap:
         return atoms
     import numpy as np
-    W = ctx.atoms.workers
+    W = ctx.atoms.sources
     V = ctx.judges.embed(atoms)
     mean = np.mean([V[a] for a in atoms], axis=0)
     mean = mean / (np.linalg.norm(mean) or 1.0)
@@ -131,8 +131,8 @@ def assign_nearest(ctx, orphans, parts):
 
 
 def publishable_pile(ctx, pile, min_prev=2):
-    """The pile atoms the disposer should hear: with refile_scope=publishable, those with >= min_prev workers."""
+    """The pile atoms the disposer should hear: with refile_scope=publishable, those with >= min_prev sources."""
     if refile_scope(ctx) != "publishable":
         return list(pile)
-    W = ctx.atoms.workers
+    W = ctx.atoms.sources
     return [a for a in pile if len(W.get(a) or ()) >= min_prev]

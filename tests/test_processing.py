@@ -42,12 +42,12 @@ def test_coalesce():
 
 
 def test_dedup_within_worker_only():
-    a = Atoms([{"worker": "s1", "task": "Do x."}, {"worker": "s1", "task": "Do x. "}, {"worker": "s2", "task": "Do x."}])
+    a = Atoms([{"source": "s1", "task": "Do x."}, {"source": "s1", "task": "Do x. "}, {"source": "s2", "task": "Do x."}])
     assert len(dedup(a).rows) == 2
 
 
 def _row(sid, text, fn, verb, obj):
-    return {"worker": sid, "occupation": "1", "title": "T", "status": "extracted", "task": text, "original": "",
+    return {"source": sid, "occupation": "1", "title": "T", "status": "extracted", "task": text, "original": "",
             "duty": "d", "function": fn, "level": "", "verb": verb, "object": obj}
 
 
@@ -65,7 +65,7 @@ def test_condense_key_merge_then_blocked_cosine_merge():
     out, mapping = condense(None, Atoms(rows), tau=0.92, cap=50, embed=embed)
     atoms = set(out.tasks)
     assert "Process vendor invoices for payment." in atoms and "Process vendor invoices using the ledger." not in atoms
-    assert sorted(out.workers["Process vendor invoices for payment."]) == ["e1", "e2"]
+    assert sorted(out.sources["Process vendor invoices for payment."]) == ["e1", "e2"]
     assert len([a for a in atoms if a.startswith("Greet")]) == 1 and "Operate the dish machine." in atoms
     reasons = {m["original"]: m["reason"] for m in mapping}
     assert reasons["Process vendor invoices using the ledger."].startswith("key ") and any(v.startswith("cos") for v in reasons.values())

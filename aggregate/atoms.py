@@ -1,15 +1,15 @@
-"""Atoms — the table the chain reads: one row per (worker, task text), the handoff a source produces.
+"""Atoms — the table the chain reads: one row per (source, task text), the handoff a source produces.
 
-Columns: worker, task, occupation (any code the source uses), title (the occupation's name, rendered into
+Columns: source, task, occupation (any code the source uses), title (the occupation's name, rendered into
 prompts), status, original (the text before normalization), plus the optional FJA fields duty, function,
 level, verb, object (defined by prompts/shared/fja_hta.txt; `blocks` reads them). An ATOM is one distinct task
-text plus the set of workers that reported it; a worker is one interview, one employer — and every prevalence
+text plus the set of sources that reported it; a source is one interview, one employer — and every prevalence
 number downstream counts that set. `read` also accepts the legacy column names (session_id, task_name,
 onet_code, onet_title, original_task_name).
 
     atoms = Atoms.read("atoms.csv")
-    atoms = Atoms.from_rows([{"worker": "s1", "task": "Draft motions.", "occupation": "23-1011.00", "title": "Lawyers"}])
-    atoms.tasks, atoms.workers["Draft motions."], atoms.title, atoms.code, atoms.records()
+    atoms = Atoms.from_rows([{"source": "s1", "task": "Draft motions.", "occupation": "23-1011.00", "title": "Lawyers"}])
+    atoms.tasks, atoms.sources["Draft motions."], atoms.title, atoms.code, atoms.records()
 """
 from __future__ import annotations
 
@@ -17,10 +17,10 @@ import csv
 from collections import defaultdict
 from pathlib import Path
 
-COLUMNS = ["worker", "task", "occupation", "title", "status", "original"]
+COLUMNS = ["source", "task", "occupation", "title", "status", "original"]
 FJA = ["duty", "function", "level", "verb", "object"]
 FUNCTIONS = ("data", "people", "things")
-LEGACY = {"session_id": "worker", "task_name": "task", "onet_code": "occupation", "onet_title": "title",
+LEGACY = {"session_id": "source", "worker": "source", "task_name": "task", "onet_code": "occupation", "onet_title": "title",
           "original_task_name": "original"}
 
 
@@ -36,7 +36,7 @@ def _canon(r: dict) -> dict:
 class Atoms:
     def __init__(self, rows):
         self.rows = [_canon(dict(r)) for r in rows]
-        self._workers = None
+        self._sources = None
         self._meta = None
 
     @classmethod
@@ -55,7 +55,7 @@ class Atoms:
             for k in r:
                 if k not in cols:
                     cols.append(k)
-        back = {v: k for k, v in LEGACY.items()}
+        back = {"source": "session_id", "task": "task_name", "occupation": "onet_code", "title": "onet_title", "original": "original_task_name"}
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         with p.open("w", newline="") as fh:
@@ -65,23 +65,23 @@ class Atoms:
                 w.writerow({(back.get(k, k) if legacy else k): v for k, v in r.items()})
 
     @property
-    def workers(self) -> dict[str, frozenset]:
-        """{task text: frozenset(worker ids)}, tasks in order of first appearance."""
-        if self._workers is None:
+    def sources(self) -> dict[str, frozenset]:
+        """{task text: frozenset(source ids)}, tasks in order of first appearance."""
+        if self._sources is None:
             sessions = defaultdict(set)
             for r in self.rows:
                 t = (r.get("task") or "").strip()
                 if t:
-                    sessions[t].add(r["worker"])
-            self._workers = {t: frozenset(s) for t, s in sessions.items()}
-        return self._workers
+                    sessions[t].add(r["source"])
+            self._sources = {t: frozenset(s) for t, s in sessions.items()}
+        return self._sources
 
     @property
     def tasks(self) -> list[str]:
-        return list(self.workers)
+        return list(self.sources)
 
     def records(self) -> list[dict]:
-        return [{"task": t, "workers": sorted(s), "prevalence": len(s)} for t, s in self.workers.items()]
+        return [{"task": t, "sources": sorted(s), "prevalence": len(s)} for t, s in self.sources.items()]
 
     @property
     def meta(self) -> dict[str, dict]:
@@ -104,7 +104,7 @@ class Atoms:
         return (self.rows[0].get("occupation") or "").strip() if self.rows else ""
 
     def __len__(self):
-        return len(self.workers)
+        return len(self.sources)
 
     def __iter__(self):
-        return iter(self.workers)
+        return iter(self.sources)

@@ -1,11 +1,11 @@
 """coverage — the share of held-out tasks the coverage judge finds described by at least one statement, for
-each list, with a paired worker bootstrap.
+each list, with a paired source bootstrap.
 
     res = coverage.run(ctx, lists, docs)       # lists = {"ours": [...], "reference": [...]}, docs a DocSet
 
 Candidates per task: the `evaluate.coverage.topk` most similar statements by embedding cosine plus every
 statement at cosine >= tau; a task is covered if any candidate says yes (ctx.judges.covers). Standard errors
-and the recentred p come from resampling held-out workers (documents).
+and the recentred p come from resampling held-out sources (documents).
 """
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def judge(ctx, texts, lists, topk=None, tau=None):
 
 
 def run(ctx, lists, docs, *, split="heldout", B=None, topk=None, tau=None):
-    """-> {available, n_workers, n_tasks, k, cov, gaps, per_task, judge}."""
+    """-> {available, n_sources, n_tasks, k, cov, gaps, per_task, judge}."""
     B = int(ctx.config.get("evaluate.coverage.B", 10000)) if B is None else B
     tasks = docs.tasks(split) if hasattr(docs, "tasks") else list(docs)
     if not tasks:
@@ -54,13 +54,13 @@ def run(ctx, lists, docs, *, split="heldout", B=None, topk=None, tau=None):
     def gap(a, b):
         by_w = collections.defaultdict(list)
         for t in tasks:
-            by_w[t["worker"]].append(float(covered[a][t["text"]]) - float(covered[b][t["text"]]))
-        return stats.boot_workers(by_w, B)
-    return {"available": True, "n_workers": len({t["worker"] for t in tasks}), "n_tasks": len(tasks),
+            by_w[t["source"]].append(float(covered[a][t["text"]]) - float(covered[b][t["text"]]))
+        return stats.boot_sources(by_w, B)
+    return {"available": True, "n_sources": len({t["source"] for t in tasks}), "n_tasks": len(tasks),
             "k": {a: len(L) for a, L in lists.items()},
             "cov": {a: float(np.mean([covered[a][t["text"]] for t in tasks])) for a in arms},
             "gaps": {f"{a}-{b}": gap(a, b) for a, b in stats.arm_pairs(arms)},
-            "per_task": [{"worker": t["worker"], "text": t["text"], **{a: covered[a][t["text"]] for a in arms},
+            "per_task": [{"source": t["source"], "text": t["text"], **{a: covered[a][t["text"]] for a in arms},
                           "n_cover": {a: sum(yes[(t["text"], L)] for L in cand[a][t["text"]]) for a in arms}} for t in tasks],
             "judge": {"model": ctx.model("covers"), "topk": topk or ctx.config.get("evaluate.coverage.topk"),
                       "tau": tau or ctx.config.get("evaluate.coverage.tau"), "B": B}}
