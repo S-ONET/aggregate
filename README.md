@@ -1,14 +1,13 @@
-# aggregate
+# TaskNet-aggregate
 
-Task atoms in, an occupational task list out, and the evaluation of that list. `aggregate` is the Python
-library behind TaskNet / Terkel: it takes a table of task statements reported by workers (from interviews, job
-postings, anything a source turns into atoms), groups them into families, writes one statement per family,
-hears every structural change twice, and re-files every atom until the corpus is exhausted. It knows nothing
-about where the atoms came from and nothing about O*NET: comparison lists, held-out documents and covariates
-are inputs the caller passes in.
+Aggregate takes a table of task statements reported by workers (interviews, job postings, anything a source
+turns into atoms), groups them into families, and writes one statement per family, hearing every structural
+change twice and re-filing every atom until the corpus is exhausted. It is agnostic to the source of the
+atoms, and it knows nothing about O*NET: comparison lists, held-out documents and covariates are inputs the
+caller passes in. Repositories that produce atoms include this package to write the list.
 
-Built for *Emerging Tasks From Worker Interviews* (Wang, Haupt, Robinson, Lewis, Brynjolfsson, Yang, 2026).
-MIT.
+The code builds on the work for interviews in *Building Occupational Task Inventories from Worker Interviews
+at Scale* (Wang, Haupt, Robinson, Lewis, Brynjolfsson, Yang, 2026). MIT.
 
 ## Install
 
@@ -25,10 +24,11 @@ Developing: `pip install -e '.[test]'` from a checkout, then `pytest -q` (no tes
 import openai
 from aggregate import Aggregator, Atoms, Config
 
-agg = Aggregator(Config.load("configs.yml"), client=openai.OpenAI(), workdir="results/lawyers")
+cfg = Config.load("configs.yml")          # to overwrite defaults, e.g. the models or the worker floor
+agg = Aggregator(cfg, client=openai.OpenAI(), workdir="results/lawyers")
 
-atoms = agg.process(rows)                 # raw task rows -> atoms: split, filter, rewrite, debrand, dedup
-atoms = Atoms.read("atoms.csv")           # or a table a source already produced
+atoms = agg.process(rows)                 # generate atoms from "raw" task rows: split, filter, rewrite, debrand, deduplicate
+atoms = Atoms.read("atoms.csv")           # or read them in from a file
 build = agg.build(atoms)                  # the list; every invariant is checked before it returns
 ```
 
