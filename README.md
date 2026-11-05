@@ -17,14 +17,14 @@ pip install 'tasknet-aggregate @ git+https://github.com/S-ONET/aggregate.git@v0.
 
 ## Building a task list
 
-A build starts from the task statements workers reported, as rows, and ends with a list of statements, each
+A build starts from the task statements the sources reported, as rows, and ends with a list of statements, each
 backed by the atoms and sources behind it. Three calls:
 
 ```python
 import openai
 from aggregate import Aggregator, Atoms, Config
 
-cfg = Config.load("configs.yml")          # to overwrite defaults, e.g. the models or the worker floor
+cfg = Config.load("configs.yml")          # to overwrite defaults, e.g. the models or the source floor
 agg = Aggregator(cfg, client=openai.OpenAI(), workdir="results/lawyers")
 
 atoms = agg.process(rows)                 # generate atoms from "raw" task rows: split, filter, rewrite, debrand, deduplicate
@@ -133,7 +133,7 @@ from aggregate import DocSet
 lists = {"ours": aggregate.statements(build), "reference": reference_statements}
 heldout = DocSet.read("heldout.json")
 
-agg.evaluate.coverage(lists, heldout)                       # share of held-out atoms a list describes, worker bootstrap
+agg.evaluate.coverage(lists, heldout)                       # share of held-out atoms a list describes, bootstrap over sourcestrap
 agg.evaluate.silhouette(lists, heldout, pool=atoms.tasks)   # do held-out tasks group more tightly under one list?
 agg.evaluate.incidence(lists, heldout)                      # documents x statements, PCA / CA, covariate correlations
 agg.evaluate.crosswalk(lists["ours"], lists["reference"])   # each of our statements: new / refined / related
