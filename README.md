@@ -1,9 +1,8 @@
 # TaskNet-aggregate
 
-Aggregate takes a table of task statements reported by workers (interviews, job postings, anything a source
-turns into atoms), groups them into families, and writes one statement per family. It is agnostic to the
-source of the atoms, and it knows nothing about O*NET: comparison lists, held-out documents and covariates are inputs the
-caller passes in. Repositories that produce atoms include this package to write the list.
+Aggregate takes a table of raw task statements (interviews, job postings, anything a source
+turns into atoms), cleans them, groups them into families, and writes one statement per family. It is agnostic to the
+source of the statements. Repositories that produce statements from different sources can include this package to write the list.
 
 The code builds on the work for interviews in *Building Occupational Task Inventories from Worker Interviews
 at Scale* (Wang, Haupt, Robinson, Lewis, Brynjolfsson, Yang, 2026). MIT.
@@ -17,7 +16,7 @@ pip install 'tasknet-aggregate @ git+https://github.com/S-ONET/aggregate.git@v0.
 ## Building a task list
 
 A build starts from the task statements the sources reported, as rows, and ends with a list of statements, each
-backed by the atoms and sources behind it. Three calls:
+backed by the original sources clustered under it.
 
 ```python
 import openai
@@ -33,9 +32,9 @@ build = agg.build(atoms)                  # the list; every invariant is checked
 
 ### Rows
 
-A row is one thing one source said they do. A source is whoever reported the task — an interviewed worker, an
-employer's posting, a respondent — and is what every count in the pipeline is a count of. `occupation` is any
-code the data uses and `title` is the occupation's name, which the prompts are rendered with.
+A row is one thing one source said they do. A source is whoever reported the task, e.g., an interviewed worker, an
+employer's posting, or a work observation. `occupation` is any
+code the data uses (which may or may not be SOC) and `title` is the occupation's name, which the prompts are rendered with. 
 
 ```python
 rows = [
@@ -58,10 +57,11 @@ s17,Advise clients on whether to settle.,23-1011.00,Lawyers,edited,Advising clie
 s42,Draft motions and file them with the court.,23-1011.00,Lawyers,confirmed,Draft motions for filing.
 ```
 
-Optional columns `duty, function, level, verb, object` carry the structured task fields an extractor can
-fill (`prompts/shared/fja_hta.txt` defines them); the chain uses `function` to keep comparisons within one
+Optional columns `duty, function, level, verb, object` carry structured task fields an extractor can
+fill (`prompts/shared/fja_hta.txt` defines them, and they are used in a posting example repo); 
+the chain uses `function` to keep comparisons within one
 worker function when `blocks.by: function` is set. `Atoms.read` also accepts the older column names
-(`session_id` or `worker`, `task_name`, `onet_code`, `onet_title`).
+(`session_id` or `worker`, `task_name`, `onet_code`, `onet_title`) from interviews.
 
 ### The build
 
@@ -83,7 +83,7 @@ two stamps. Atoms that reached no family sit in the pile (`released`, `declined`
  "released": ["Order office supplies for the practice.", "..."]}
 ```
 
-The two stamps are how the chain avoids rewriting what it has already written: `written_for` is the hash of
+The two stamps allow for caching: `written_for` is the hash of
 the member set the statement was written for, and `written_with` the hash of the writer's prompt. A family
 whose members and prompt both match its stamps is skipped; one whose members changed (an atom was filed in or
 out) or whose prompt changed is written again. A family publishes only with `min_sources` distinct sources
