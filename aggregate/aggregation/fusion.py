@@ -73,9 +73,16 @@ def partition(core, seen, conf=0.75):
     return fresh, standing
 
 
-def decide(row, atom_sources, min_sources=2):
+def decide(row, atom_sources, min_sources=2, floor=None):
     """KEEP or SPLIT a fused verdict, by whether the proposed parts actually partition the members and publish
-    under the source floor. -> (verdict, parts, basis, feedback)."""
+    under the source floor. `floor` (a Floor, aggregation/floor.py) is the rule when the build has instruments;
+    without it, min_sources distinct sources. -> (verdict, parts, basis, feedback)."""
+    if floor is not None and not floor.multi:
+        floor = None
+
+    def clears(statement, sources):
+        return floor.clears(statement, sources) if floor is not None else len(sources) >= min_sources
+    floor_words = floor.describe() if floor is not None else f"{min_sources} sources"
     rawouts = [o for o in row["outcomes"] if (o.get("statement") if isinstance(o, dict) else str(o)).strip()]
     outs = [(o.get("statement") if isinstance(o, dict) else str(o)) for o in rawouts]
     if len(outs) < 2:
@@ -122,7 +129,7 @@ def decide(row, atom_sources, min_sources=2):
         for a in atoms:
             sources |= set(atom_sources.get(a, set()))
         parts.append({"statement": o, "members": sorted(atoms), "n_members": len(atoms), "prevalence": len(sources),
-                      "publishable": len(sources) >= min_sources, "_sources": sources})
+                      "publishable": clears(o, sources), "_sources": sources})
     for label, extra in (("(described by MORE THAN ONE proposed part — the parts overlap)", shared),
                          ("(not covered by any proposed part)", unplaced)):
         if extra:
@@ -131,6 +138,7 @@ def decide(row, atom_sources, min_sources=2):
     for part in parts:
         others = set().union(*[q["_sources"] for q in parts if q is not part]) if len(parts) > 1 else set()
         part["exclusive"] = len(part["_sources"] - others)
+        part["_exclusive"] = part["_sources"] - others
     for part in parts:
         if not part["statement"].startswith("(") and part["n_members"] < 2:
             part["publishable"] = False
@@ -148,11 +156,11 @@ def decide(row, atom_sources, min_sources=2):
             f"described by more than one of them and only {len(with_atoms)} part(s) hold any activity "
             f"uniquely. The members do not partition the way the verdict claims, so it carries no evidence.")
     if len(real) >= 2:
-        strong = [p for p in real if p["exclusive"] >= min_sources]
+        strong = [p for p in real if clears(p["statement"], p["_exclusive"])]
         if len(strong) >= 2:
             return "split", parts, "exclusive-sources", ""
         fb = ("Two or more parts clear the source floor, but no part has "
-              f"{min_sources} sources that do it and not the others — "
+              f"{floor_words} that do it and not the others — "
               + "; ".join(f'"{p["statement"][:70]}" ({ev(p)}, {p["exclusive"]} exclusive)' for p in real)
               + f". The family has {row['prevalence']} sources in total. Splits on this basis audit as sound as "
                 f"exclusive-sources ones (22/25 vs 23/25). Reviewer's grounds: {row['reason']}")
@@ -161,7 +169,7 @@ def decide(row, atom_sources, min_sources=2):
         fb = (f"Of the {row['n_members']} activities filed here, only {real[0]['n_members']} have the source "
               f"evidence to publish ({real[0]['prevalence']} sources). "
               + "".join(f'The part "{p["statement"][:90]}" rests on {ev(p)} — below the floor of '
-                        f'{min_sources} sources, so its activities are released to the pile. ' for p in thin)
+                        f'{floor_words}, so its activities are released to the pile. ' for p in thin)
               + "The supported activities become the family.")
         return "split", parts, "one-supported-part", fb
     fb = ("No proposed part of this statement clears the source floor — "
@@ -289,7 +297,7 @@ def hear(ctx, build):
         rows = list(ex.map(run, fresh))
     for r in rows:
         r["verdict"], r["parts"], r["basis"], r["feedback"] = (
-            decide(r, W, ctx.min_sources) if r["fused"] else ("keep", [], "", ""))
+            decide(r, W, ctx.min_sources, ctx.floor) if r["fused"] else ("keep", [], "", ""))
     by_mem = by_members(seen)
     for c in standing:
         rec = lookup(c, seen, by_mem)
@@ -304,6 +312,7 @@ def hear(ctx, build):
     for r in rows:
         for part in r["parts"]:
             part.pop("_sources", None)
+            part.pop("_exclusive", None)
     for r in rows:
         if not r.get("standing"):
             seen[sha256(r["statement"])] = {k: r.get(k) for k in ("fused", "outcomes", "reason", "verdict", "parts", "basis",

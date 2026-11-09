@@ -45,6 +45,7 @@ def build(ctx, standing=None, fresh=False, max_cycles=None, on_stage=None) -> di
     reg = families.registry(standing) if standing else None
     if standing and not fresh:
         mode, art = "AMEND", copy.deepcopy(standing)
+        ctx.floor.stamp(art.get("core") or [])          # instruments: the adopted list's scope, before the seed check
     else:
         mode, art = "FRESH", cluster.seed(ctx)
     print(f"=== {ctx.occupation}: {mode} build" + (" (continuity from the adopted list)" if reg else ""))
