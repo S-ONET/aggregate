@@ -186,7 +186,7 @@ build = agg.build(atoms, standing=final)
 
 ## How the chain works
 
-cluster → write → split → write → merge / sharpen → refile, repeated until cluster proposes no new family
+cluster → write → split → write → merge / sharpen → split the merged families → write → refile, repeated until cluster proposes no new family
 that clears the source floor (cycle 1 always runs in full), capped at `chain.max_cycles`. Every judge
 verdict is memoised on (model, prompt hash, inputs) under `cache_dir`, so a rebuild is nearly free, and the
 ledgers under `workdir/ledgers/` replay settled hearings. Cache keys are an interface:

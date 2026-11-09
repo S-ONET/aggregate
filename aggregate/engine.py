@@ -202,6 +202,13 @@ class Engine:
                 e["in"] += int(getattr(u, "prompt_tokens", 0) or 0)
                 e["out"] += int(getattr(u, "completion_tokens", 0) or 0)
                 e["cached"] += cached
+                log = self.config.get("usage_log", "")
+                if log:                                   # one JSON line per call, so a killed run keeps its cost
+                    with open(log, "a") as fh:
+                        fh.write(json.dumps({"t": round(time.time(), 3), "model": bare_model(model),
+                                             "in": int(getattr(u, "prompt_tokens", 0) or 0),
+                                             "out": int(getattr(u, "completion_tokens", 0) or 0),
+                                             "cached": cached}) + "\n")
         except Exception:                                 # noqa: BLE001
             pass
 

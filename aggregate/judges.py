@@ -271,6 +271,13 @@ class Judges:
         except Exception:                                 # noqa: BLE001
             return None
 
+    def duties_cap(self, members) -> int:
+        """Output tokens for one one_duty verdict. A FUSED reply copies every member under its part (~20 tokens
+        each), so a fixed 2000 truncated the verdict on large families, which then failed open as KEEP.
+        models.duties.max_out (2000) + models.duties.max_out_per_member (30) x members. Not part of the cache key."""
+        return (int(self.cfg.get("models.duties.max_out", 2000))
+                + int(self.cfg.get("models.duties.max_out_per_member", 30)) * len(members))
+
     def duties(self, statement, members, draw=1) -> dict:
         """-> {one_duty: bool, outcomes: [{statement, members}], reason}. Fails OPEN (one_duty=True) and never
         caches the failure. Self-flips on ~16% of identical inputs: one verdict is a queue entry, not evidence."""
@@ -282,8 +289,8 @@ class Judges:
 
         def compute():
             try:
-                d = json.loads(strip_json(self.ctx.engine.chat(prompt, model, json_mode=True, max_out=2000, effort=effort,
-                                                               cache_prefix=instr)) or "{}")
+                d = json.loads(strip_json(self.ctx.engine.chat(prompt, model, json_mode=True, max_out=self.duties_cap(members),
+                                                               effort=effort, cache_prefix=instr)) or "{}")
                 if not isinstance(d.get("one_duty"), bool):
                     raise ValueError("no one_duty bool")
                 return {"one_duty": d["one_duty"], "outcomes": self._outcomes(d.get("outcomes")), "reason": str(d.get("reason") or "")}
@@ -298,7 +305,8 @@ class Judges:
             return 0
         jobs = [(self.duties_key(s, m), self.ctx.prompt("one_duty", occupation=self.ctx.occupation, statement=s,
                                                         members=self._members_block(m))) for s, m in rows]
-        return self.ctx.batch.fill("one_duty", jobs, self.cfg.model("duties"), self._duties_parse, max_out=2000,
+        return self.ctx.batch.fill("one_duty", jobs, self.cfg.model("duties"), self._duties_parse,
+                                   max_out=max(self.duties_cap(m) for _, m in rows),
                                    json_mode=True, effort=self.cfg.effort("duties"), tag="one_duty")
 
     # ── dispose ───────────────────────────────────────────────────────────────────────────────────
@@ -424,8 +432,13 @@ class Judges:
             if not isinstance(ids, list) or not ids:
                 return None
             mem = [rev.get(str(i)) for i in ids]
-            if any(m is None for m in mem) or any(m in seen for m in mem):
-                return None
+            if any(m is None for m in mem):
+                return None                               # an unknown number
+            # a statement listed twice keeps its first decision: rejecting the whole reply over one repeat left
+            # the whole component undecided (a 49-statement postings component did exactly that)
+            mem = list(dict.fromkeys(m for m in mem if m not in seen))
+            if not mem:
+                continue
             seen.update(mem)
             dec = str(g.get("decision") or "").upper()
             rel = str(g.get("relation") or "").upper()
@@ -451,8 +464,9 @@ class Judges:
                     if sh <= 1 and len(wk[me]) >= 2 and len(wk[other]) >= 2 and (me, other) in edge_set:
                         rec["contested"] = f"different-people evidence ({sh} shared of {len(wk[me])}|{len(wk[other])}) vs SEPARATE verdict"
             out.append(rec)
-        if seen != set(nodes):
-            return None
+        # a statement the reply left out is KEPT as it is, rather than throwing away every decision the reply made
+        out += [{"members": [t], "decision": "KEEP", "relation": "", "proposed": "", "divider": "",
+                 "basis": "left out of the resolver's reply"} for t in nodes if t not in seen]
         return out
 
     # ── sharpen ───────────────────────────────────────────────────────────────────────────────────

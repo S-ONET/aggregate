@@ -1,5 +1,5 @@
-A trained occupational analyst is reviewing a published task statement. Predict whether he will object
-to HOW IT IS WRITTEN.
+A trained occupational analyst is reviewing a published task statement. Predict whether the analyst will
+object to HOW IT IS WRITTEN.
 
 WHOSE WORK THIS IS IS NOT YOUR QUESTION. Whether a neighbouring occupation does it, whether it is a
 supervisor's job, how many workers do it — none of that can make a well-built sentence faulty or a
@@ -96,40 +96,38 @@ Pick the section the defect actually offends. Do NOT reach for a label because t
 awkwardly — awkwardness is not a section, and if no section is offended there is no defect. `face_valid`
 is not an exception to that: it needs the sentence a practitioner would have written instead.
 
-## WHAT HE ASSERTS VERSUS WHAT HE ASKS
+## FIRM OBJECTIONS VERSUS QUESTIONS
 
-His objections come in two strengths, and the difference is measurable in his own wording.
+Objections come in two strengths.
 
-He ASSERTS three of them — a false claim about what the worker does or decides (verb), a clipped word
-(vocabulary), two separate jobs in one sentence (fusion). He states these flatly and asks for the fix.
-Predict a defect on these whenever you can quote the words.
+Three are FIRM: a false claim about what the worker does or decides (verb), a clipped word (vocabulary),
+two separate jobs in one sentence (fusion). The analyst states these flatly and asks for the fix. Predict
+a defect on these whenever you can quote the words.
 
 AND THE AUTHORITY CLAIM IS THE ONE MOST OFTEN MISSED, so test it explicitly on every statement rather
 than waiting for it to look wrong. Find the sentence's main verb and any verb in its purpose clause, and
 ask of each: does the published list above show this occupation MAKING that call, or only feeding it?
 A verb that settles something — determine, approve, authorise, set, decide, evaluate-in-order-to-decide —
-when the list shows the occupation advising, preparing, or recommending, is a false claim and he will
-ask for the softer verb. The reverse also counts: a verb that merely advises where the list shows the
-occupation doing the thing understates it, and he will ask for the stronger verb. Both are defects of
-the VERB. Name the verb to change; do not conclude anything about who owns the task.
+when the list shows the occupation advising, preparing, or recommending, is a false claim, and the softer
+verb is wanted. The reverse also counts: a verb that merely advises where the list shows the occupation
+doing the thing understates it, and the stronger verb is wanted. Both are defects of the VERB. Name the
+verb to change; do not conclude anything about who owns the task.
 
-He ASKS about the fourth, house vocabulary (vocabulary). On it he writes things like "is this a universally used term, or
-can it be simplified?" and "this is odd, unless it is a common phrase in the trade" — he is reporting
-that HE does not recognise the word, not that the word is wrong. So:
+House vocabulary (vocabulary) is a QUESTION rather than a firm objection: the analyst is asking whether a
+term is in general use or can be simplified, not asserting that it is wrong. So:
   · A term that is ordinary English used in a slightly specialised way, or a widely current name for a
-    thing, is NOT a defect. He recognises those and passes them.
+    thing, is NOT a defect. An analyst recognises those and passes them.
   · A term that only makes sense inside a particular workplace's process, or that reads as a metaphor
     or a piece of internal shorthand, IS one. It is the kind of word a reader would have to be told.
   When you are unsure which of those two a term is, say there is no defect.
 
 ## CALIBRATION
 
-Roughly one statement in six has a defect he would name, so a defect is the exception. It needs a
-trigger you can quote. Do not accumulate mild reservations into an objection — he names one identifiable
-thing, or nothing. But do not shrink from a clear one either: a verb that claims a decision the sentence
-gives no basis for (verb), a truncated word (vocabulary), two jobs joined by "and" (fusion), or a
-coordinative task whose counterpart is "stakeholders" (counterpart) are all defects however fluent the
-sentence reads.
+A defect is the exception, not the rule. It needs a trigger you can quote. Do not accumulate mild
+reservations into an objection: name one identifiable thing, or nothing. But do not shrink from a clear one
+either: a verb that claims a decision the sentence gives no basis for (verb), a truncated word
+(vocabulary), two jobs joined by "and" (fusion), or a coordinative task whose counterpart is
+"stakeholders" (counterpart) are all defects however fluent the sentence reads.
 
 Respond ONLY with JSON, no prose and no code fences:
 {"defect": true | false,
