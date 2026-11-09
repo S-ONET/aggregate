@@ -283,7 +283,8 @@ def hear(ctx, build):
                 "n_members": len(c.get("members") or []), "prevalence": c.get("prevalence"),
                 "fused": v["one_duty"] is False, "outcomes": v["outcomes"], "reason": v["reason"],
                 "corroboration": corroboration(c["statement"], trace) + form_corroboration(c, conf),
-                "form_flag": c.get("form_flag"), "reopened": sha256(c["statement"]) in seen}
+                "form_flag": c.get("form_flag"), "reopened": sha256(c["statement"]) in seen,
+                "failed": v.get("error")}                # the judge failed open: kept now, never ledgered below
     ctx.judges.duties_many([(c["statement"], blocks.cap_members(ctx, c.get("members") or [])) for c in fresh])
     with ThreadPoolExecutor(max_workers=ctx.workers_for("fusion")) as ex:
         rows = list(ex.map(run, fresh))
@@ -305,7 +306,10 @@ def hear(ctx, build):
         for part in r["parts"]:
             part.pop("_sources", None)
     for r in rows:
-        if not r.get("standing"):
+        if r.get("failed"):
+            print(f"  FAILED (kept, not ledgered; heard again next time): {r['statement'][:70]}  [{r['failed']}]",
+                  file=sys.stderr)
+        if not r.get("standing") and not r.get("failed"):
             seen[sha256(r["statement"])] = {k: r.get(k) for k in ("fused", "outcomes", "reason", "verdict", "parts", "basis",
                                                                     "feedback", "_shared_hits", "statement", "members")}
             if r.get("reopened") or fusion_flag(r, conf):

@@ -100,8 +100,9 @@ behind it (2 by default; the postings runs use 3).
 ### The client and the configuration
 
 The client is anything with the OpenAI SDK's `chat.completions.create` and `embeddings.create`; pass
-`router=lambda model: client` to route by model, or nothing to read `OPENAI_API_KEY` (and
-`ONET_CLAUDE_API_KEY` + `ONET_CLAUDE_BASE_URL` for `claude-*` models through an OpenAI-compatible gateway).
+`router=lambda model: client` to route by model, or nothing to read the environment: `OPENAI_API_KEY`
+(optionally `OPENAI_BASE_URL`), `CLAUDE_API_KEY` + `CLAUDE_BASE_URL` for `claude-*` models through an
+OpenAI-compatible gateway (there is no default gateway), or one `LLM_API_KEY` + `LLM_BASE_URL` for every model.
 Every model, threshold and batching knob is a key in `aggregate/configs.yml`; a file passed to `Config.load`
 overlays those defaults by key, so a run that only changes the writer is a one-line file:
 
@@ -186,7 +187,7 @@ build = agg.build(atoms, standing=final)
 
 ## How the chain works
 
-cluster → write → split → write → merge / sharpen → refile, repeated until cluster proposes no new family
+cluster → write → split → write → merge / sharpen → split the merged families → write → refile, repeated until cluster proposes no new family
 that clears the source floor (cycle 1 always runs in full), capped at `chain.max_cycles`. Every judge
 verdict is memoised on (model, prompt hash, inputs) under `cache_dir`, so a rebuild is nearly free, and the
 ledgers under `workdir/ledgers/` replay settled hearings. Cache keys are an interface:

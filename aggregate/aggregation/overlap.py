@@ -56,6 +56,65 @@ def components(pairs):
     return [sorted(v) for v in out.values()]
 
 
+def capped_components(pairs, cap):
+    """Components over [(a, b, cos)] of at most `cap` items: pairs join closest-first, and a pair that would make a
+    group bigger than `cap` is left out. -> ([[member, ...]], pairs left out). cap <= 0, or every component at
+    or under the cap, gives exactly `components`. One resolver call over a 49-statement postings component (chained
+    through one umbrella statement) listed a statement twice and proposed SEPARATE for 45 of them."""
+    if cap <= 0:
+        return components([(a, b) for a, b, _ in pairs]), 0
+    parent, size, dropped = {}, {}, 0
+
+    def find(x):
+        parent.setdefault(x, x)
+        size.setdefault(x, 1)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    for a, b, _ in sorted(pairs, key=lambda t: (-t[2], t[0], t[1])):
+        ra, rb = find(a), find(b)
+        if ra == rb:
+            continue
+        if size[ra] + size[rb] > cap:
+            dropped += 1
+            continue
+        parent[ra] = rb
+        size[rb] += size[ra]
+    out = collections.defaultdict(list)
+    for x in list(parent):
+        out[find(x)].append(x)
+    return [sorted(v) for v in out.values() if len(v) > 1], dropped
+
+
+def merge_identical(ctx, core):
+    """Families whose statements are word-for-word identical become one: the same text claims the same work, so no
+    judge is needed. The merged family takes the first one's place, the union of the members and a new sid; its
+    writer stamps go, so synthesize checks the text against the new members. -> (core, [merged texts])"""
+    by = collections.defaultdict(list)
+    for c in core:
+        by[c["statement"]].append(c)
+    dups = [t for t, cs in by.items() if len(cs) > 1]
+    if not dups:
+        return core, []
+    out, done = [], set()
+    for c in core:
+        t = c["statement"]
+        if t not in dups:
+            out.append(c)
+        elif t not in done:
+            cs = by[t]
+            keep = {k: v for k, v in cs[0].items() if k not in ("written_for", "written_with", "form_flag")}
+            out.append({**keep, "sid": families.new_sid(), "sid_merged_from": [f.get("sid") for f in cs], "head": t,
+                        "statement": t, "members": sorted({m for f in cs for m in (f.get("members") or [])}),
+                        "merged_from": [t] * len(cs)})
+            done.add(t)
+    families.recount(ctx, out)
+    for t in dups:
+        print(f"  MERGED identical statements: {t[:90]}", file=sys.stderr)
+    return out, dups
+
+
 def judge_pairs(ctx, core, tau=None):
     """Run the overlaps judge over every prefiltered pair -> [{a, b, cos, label, labels_collide, why}]."""
     stmts = [c["statement"] for c in core]
@@ -174,6 +233,7 @@ def route(ctx, rows, by_mem=None):
     """The collisions, then ONE joint decision per component -> {"merge", "sharpen", "withheld", "mixed", "partitions"}."""
     by_mem = by_mem or {}
     merge_cap = int(ctx.config.get("chain.merge_cap", 4))
+    group_cap = int(ctx.config.get("chain.overlap_group_cap", 10) or 0)
     colliding = [(r["a"], r["b"]) for r in rows if r["labels_collide"]]
     why = collections.defaultdict(dict)
     for r in rows:
@@ -181,7 +241,11 @@ def route(ctx, rows, by_mem=None):
             why[r["a"]][r["b"]] = r["why"]
             why[r["b"]][r["a"]] = r["why"]
     mg, mixed, parts_log, specs = [], [], [], []
-    for c in components(colliding):
+    comps, dropped = capped_components([(r["a"], r["b"], float(r.get("cos") or 0)) for r in rows if r["labels_collide"]],
+                                       group_cap)
+    if dropped:
+        print(f"  {dropped} colliding pair(s) left out to keep each group to {group_cap} statements", file=sys.stderr)
+    for c in comps:
         inner = [(a, b) for (a, b) in colliding if a in c and b in c]
         part = resolve_component(ctx, c, inner, {n: blocks.cap_members(ctx, by_mem.get(n, [])) for n in c})
         if not part:
@@ -207,15 +271,19 @@ def route(ctx, rows, by_mem=None):
 
 def apply_merges(ctx, core, mg, partitions=()):
     """Combine each merge group into one family (its statement written from the resolver's seed) -> (fams, log, lost)."""
-    by = {c["statement"]: c for c in core}
+    # two families can carry one text (a merge or rewrite can reproduce a neighbour's), so a merge takes every
+    # family carrying a named text rather than keeping one and losing the others' members
+    by = collections.defaultdict(list)
+    for c in core:
+        by[c["statement"]].append(c)
     W = ctx.atoms.sources
 
     def cov(stmt, atoms):
         return sum(synthesize.covered(ctx, stmt, atoms))
     merged, log, lost, fams = set(), [], [], []
     for g in mg:
-        mem = sorted({m for s in g for m in (by[s].get("members") or [])})
-        before = sum(cov(s, sorted(set(by[s].get("members") or []))) for s in g)
+        mem = sorted({m for s in g for f in by[s] for m in (f.get("members") or [])})
+        before = sum(cov(s, sorted(set(f.get("members") or []))) for s in g for f in by[s])
         seed = next((x["proposed"] for pt in partitions for x in pt.get("groups", [])
                      if x.get("decision") == "MERGE" and set(x.get("members") or []) == set(g) and x.get("proposed")), g[0])
         stmt = synthesize.statement(ctx, seed, mem, [s for s in by if s not in g]) or g[0]
@@ -223,7 +291,7 @@ def apply_merges(ctx, core, mg, partitions=()):
         if after < before:
             lost.append({"from": g, "statement": stmt, "cov_before": before, "cov_after": after, "n_atoms": len(mem)})
         w = sorted({x for m in mem for x in W.get(m, ())})
-        fams.append({"sid": families.new_sid(), "sid_merged_from": [by[s].get("sid") for s in g if by.get(s)],
+        fams.append({"sid": families.new_sid(), "sid_merged_from": [f.get("sid") for s in g for f in by.get(s, [])],
                      "head": stmt, "statement": stmt, "members": mem, "sources": w, "prevalence": len(w),
                      "n_atoms": len(mem), "merged_from": list(g)})
         merged.update(g)
@@ -268,8 +336,8 @@ def sharpen_component(ctx, nodes, edges, members_of, frozen=()):
 def apply_sharpens(ctx, core, sg, standing_reg=None):
     """Reword each sharpen group's statements in ONE call per group -> (core, log). A family is standing only
     when `standing_reg` holds its member set AND its statement is still the adopted text."""
-    by = {c["statement"]: c for c in core}
-    out, log = [], []
+    by = {c["statement"]: c for c in core}             # members for the prompt only; the output is built from core
+    out, log, rewritten = [], [], {}
     for g in sg:
         movable = [m for m in g["members"] if m in by]
         frozen = [x for x in dict.fromkeys(sib for e in g["each"] for sib in (e.get("siblings") or []))
@@ -280,9 +348,15 @@ def apply_sharpens(ctx, core, sg, standing_reg=None):
             continue
         m_of = {n: blocks.cap_members(ctx, by[n].get("members") or []) for n in nodes}
         h = sharpen_component(ctx, nodes, edges, m_of, frozen=frozen) or {}
+        # a rewrite may not be a statement the list already has (it would fuse two families): fall to the next
+        # candidate that passed the form gate, else leave the statement as it is
+        taken = set(by) | set(rewritten.values())
+        h = {old: next((c for c in [new, *ctx.sharpen_alternatives.get(old, [])] if c not in taken), None)
+             for old, new in h.items()}
+        h = {old: new for old, new in h.items() if new}
         docket, applied = [], set()
         for old, new in h.items():
-            if old not in by or old == new:
+            if old not in by or old == new or old in rewritten:
                 continue
             f = by[old]
             adopted = families.match(f.get("members") or [], standing_reg) if standing_reg else None
@@ -295,7 +369,7 @@ def apply_sharpens(ctx, core, sg, standing_reg=None):
                 continue
             log.append({"before": old, "after": new, "group": movable,
                         "alternatives": [c for c in ctx.sharpen_alternatives.get(old, []) if c != new]})
-            by[old] = synthesize.stamp_flag(ctx, {**f, "statement": new, "sharpened_from": old}, new)
+            rewritten[old] = new
             applied.add(old)
         if applied:
             record_sharpen_edges(ctx, [e for e in edges if e[0] in applied or e[1] in applied], m_of)
@@ -304,20 +378,24 @@ def apply_sharpens(ctx, core, sg, standing_reg=None):
             for e in docket:
                 print(f"  DOCKET sharpen{' [concurrence]' if e.get('concurrence') else ''} {e['statement'][:64]}\n"
                       f"            -> {e['proposed'][:64]}", file=sys.stderr)
+    # from core itself, so two families sharing a text each keep their own members
     for c in core:
-        out.append(by.get(c["statement"], c))
+        new = rewritten.get(c["statement"])
+        out.append(synthesize.stamp_flag(ctx, {**c, "statement": new, "sharpened_from": c["statement"]}, new) if new else c)
     return out, log
 
 
 def resolve(ctx, build, standing=None, tau=None):
     """The whole hearing: judge pairs, route, apply merges, apply sharpens. -> (build, report)."""
-    core = build["core"]
+    core, _ = merge_identical(ctx, build["core"])      # identical statements, e.g. from synthesis
     rows = judge_pairs(ctx, core, tau)
     r = route(ctx, rows, {c["statement"]: (c.get("members") or []) for c in core})
     fams, mlog, lost = apply_merges(ctx, core, r["merge"], r["partitions"])
+    fams, _ = merge_identical(ctx, fams)               # a merge that wrote a neighbour's statement
     if mlog:
         print(f"  APPLIED {len(mlog)} merges: {len(core)} families -> {len(fams)}")
     newcore, slog = apply_sharpens(ctx, fams, r["sharpen"], standing)
+    newcore, _ = merge_identical(ctx, newcore)         # backstop: two rewrites in one pass can still meet
     if slog:
         print(f"  SHARPENED {len(slog)} statements across {len(r['sharpen'])} group(s)")
     out = {"meta": {**build.get("meta", {}), "label_model": ctx.model("overlaps"), "resolve_model": ctx.model("merge"),

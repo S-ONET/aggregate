@@ -1,4 +1,5 @@
-"""chain — one loop builds an occupation: cluster -> statements -> split -> statements -> merge/sharpen -> refile,
+"""chain — one loop builds an occupation: cluster -> statements -> split -> statements -> merge/sharpen -> split
+again (the merged families; chain.recheck_after_overlap) -> refile,
 REPEATED UNTIL CLUSTER PROPOSES NO NEW TASK THAT MEETS THE CRITERIA (the source floor) — the only stopping
 condition; cycle 1 always runs in full — capped at chain.max_cycles.
 
@@ -74,6 +75,12 @@ def build(ctx, standing=None, fresh=False, max_cycles=None, on_stage=None) -> di
         art = synthesize.statements(ctx, art, reg)
         art, ov = overlap.resolve(ctx, art, reg)
         _write(ctx, "verdicts", f"cycle{cycle}_overlap.json", ov)
+        if ctx.config.get("chain.recheck_after_overlap", True):
+            # the fusion hearing again: overlap's merges wrote statements the first hearing never saw. A family
+            # already judged replays its verdict from the ledger by member set, so only merged families are heard.
+            art, _ = fusion.split(ctx, art)
+            _write(ctx, "verdicts", f"cycle{cycle}_fused_merged.json", art.pop("fusion_verdicts", {}))
+            art = synthesize.statements(ctx, art, reg)
         snap("consolidate", cycle)
         art, rf = refile.place(ctx, art)
         _write(ctx, "verdicts", f"cycle{cycle}_coverage.json", rf)

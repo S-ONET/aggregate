@@ -27,10 +27,12 @@ from . import blocks
 SEP = "␟"
 
 
-def _ladder(max_out, effort):
-    """The truncation rungs: raise the cap at the configured effort FIRST, degrade effort only last."""
-    return ([(max_out, effort), (max_out * 3, effort), (max_out * 3, "low")] if effort != "low"
-            else [(max_out, "low"), (max_out * 3, "low")])
+def _ladder(max_out, effort, max_cap=128000):
+    """The truncation rungs: raise the cap at the configured effort FIRST, degrade effort only last. No rung asks
+    for more than `max_cap` (the model's completion limit, models.cluster.max_out_cap) unless max_out already does."""
+    big = min(max_out * 3, max(max_cap, max_out)) if max_cap else max_out * 3
+    return ([(max_out, effort), (big, effort), (big, "low")] if effort != "low"
+            else [(max_out, "low"), (big, "low")])
 
 
 def chat(ctx, prompt, max_out, tag, model=None, effort=None, cache_prefix=None):
@@ -44,7 +46,7 @@ def chat(ctx, prompt, max_out, tag, model=None, effort=None, cache_prefix=None):
                    {"type": "text", "text": prompt[len(cache_prefix):]}]
     else:
         content = prompt
-    rungs = _ladder(max_out, effort)
+    rungs = _ladder(max_out, effort, int(ctx.config.get("models.cluster.max_out_cap", 128000) or 0))
     for i, (cap, eff) in enumerate(rungs):
         kw = {**ctx.engine.chat_kwargs(model, cap, effort=eff), "timeout": timeout}
         r = ctx.engine.create(model, [{"role": "user", "content": content}], **kw)
@@ -109,6 +111,8 @@ def group(ctx, task_labels):
     items = _items(labels)
     cap = max(int(ctx.config.get("models.cluster.max_out_min", 32000)),
               int(ctx.config.get("models.cluster.max_out_per_atom", 120)) * len(labels))
+    if int(ctx.config.get("models.cluster.max_out_cap", 128000) or 0):  # never above the model's completion limit
+        cap = min(cap, int(ctx.config.get("models.cluster.max_out_cap", 128000)))
     key = sha256(SEP.join(["DECOMPOSEG", model, effort, str(cap), sha256(template), items]))
 
     def compute():
