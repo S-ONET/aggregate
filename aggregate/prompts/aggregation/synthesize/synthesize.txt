@@ -7,7 +7,7 @@ any one of them. So the objects it names are alternatives across the workforce r
 handles, the vocabulary it uses has to be recognisable to a practitioner who has never seen the others' work,
 and a detail that belongs to a single account is a detail about that workplace, not about the occupation.
 
-The specific activities below were grouped as ONE task family by an earlier step. That step's heading is
+The specific activities below were grouped as ONE task cluster by an earlier step. That step's heading is
 deliberately NOT shown to you: it was written to name a shelf, and every statement written from it inherited its
 verb and its omissions. The activities are the evidence. Write a single O*NET-style task statement for the work
 they describe.
@@ -196,11 +196,11 @@ $items
 
 Answer with ONLY the statement.
 
-MUTUAL EXCLUSIVITY WITH THE OTHER TASKS IN THIS LIST. These are the OTHER families being written up alongside yours:
+MUTUAL EXCLUSIVITY WITH THE OTHER TASKS IN THIS LIST. These are the OTHER clusters being written up alongside yours:
 $siblings
 
 Your statement must not describe work one of those owns. Two ways that happens, and both are errors:
-- AN EXAMPLE that belongs to another family. If one of your "such as" items is the core work of a family above, drop that item and pick a different one from your OWN activities — the other statement covers it.
-- AN OBJECT CATEGORY that swallows another family. If your object names a whole class of work another family is dedicated to ("... with medications, procedures, or interventions" when separate families do the procedures), narrow the object to what YOUR activities actually describe. A category broad enough to contain a sibling makes your statement read as its parent.
+- AN EXAMPLE that belongs to another cluster. If one of your "such as" items is the core work of a cluster above, drop that item and pick a different one from your OWN activities — the other statement covers it.
+- AN OBJECT CATEGORY that swallows another cluster. If your object names a whole class of work another cluster is dedicated to ("... with medications, procedures, or interventions" when separate clusters do the procedures), narrow the object to what YOUR activities actually describe. A category broad enough to contain a sibling makes your statement read as its parent.
 
 Do NOT solve this by going vague, by deleting your specifics wholesale, or by inventing work your activities do not describe. Say precisely what YOUR activities are, and leave the rest to the tasks that own them.

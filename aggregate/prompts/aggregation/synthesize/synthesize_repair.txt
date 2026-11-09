@@ -28,7 +28,7 @@ in front of it.
      serve — and the rest stay as objects or go. Turning "<category> by A-ing, B-ing, and C-ing" into
      "A, B, and C" trades a bad clause for a three-verb compound, which the same rules forbid one line down,
      and you will have moved the defect rather than fixed it. If no single act dominates, the clause was
-     carrying a fused family and DELETION is the branch: leave the head, take the list out.
+     carrying a fused cluster and DELETION is the branch: leave the head, take the list out.
 REWORDING INSIDE THE CLAUSE IS NOT A REPAIR OF IT. The complaint is that the clause does no work; a different
 word doing no work is the same statement with different spelling, and it is rejected again.
 
