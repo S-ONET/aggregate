@@ -182,10 +182,12 @@ def place(ctx, build):
         log["released"] = len(released)
     W = ctx.atoms.sources
     keep, demoted = [], []
+    ctx.floor.prefill([(f.get("statement") or f.get("head"), {w for m in f["members"] for w in (W.get(m) or ())})
+                       for f in core if f["members"]])
     for f in core:
         if not f["members"]:
             continue
-        if len({w for m in f["members"] for w in (W.get(m) or ())}) >= ctx.min_sources:
+        if ctx.floor.clears(f.get("statement") or f.get("head") or "", {w for m in f["members"] for w in (W.get(m) or ())}):
             keep.append(f)
         else:
             demoted.append(f)
@@ -194,6 +196,7 @@ def place(ctx, build):
         log["demoted"] = [f.get("statement") or f.get("head") for f in demoted]
     build["core"] = keep
     families.recount(ctx, build["core"])
+    ctx.floor.stamp(build["core"])
     build["refile_log"] = log
     print(f"  REFILED: pile {log['pile']} + off-home {log['off_home']} -> filed {log['filed']}, moved {log['moved']}, "
           f"released {log['released']}, demoted {len(log.get('demoted') or [])}")

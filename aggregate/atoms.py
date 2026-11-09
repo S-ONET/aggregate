@@ -7,9 +7,16 @@ text plus the set of sources that reported it; a source is one interview, one em
 number downstream counts that set. `read` also accepts the legacy column names (session_id, task_name,
 onet_code, onet_title, original_task_name).
 
+INSTRUMENTS. An optional `instrument` column says which kind of data a source came from (interview, posting,
+...). `Atoms.combine({"interview": a, "posting": b})` stacks per-instrument tables into one, stamping the column
+and namespacing every source id as "<instrument>:<source>" so two instruments' ids can never collide. The same
+task text reported under two instruments is ONE atom whose sources span both.
+
     atoms = Atoms.read("atoms.csv")
     atoms = Atoms.from_rows([{"source": "s1", "task": "Draft motions.", "occupation": "23-1011.00", "title": "Lawyers"}])
     atoms.tasks, atoms.sources["Draft motions."], atoms.title, atoms.code, atoms.records()
+    atoms = Atoms.combine({"interview": Atoms.read("i.csv"), "posting": Atoms.read("p.csv")})
+    atoms.instrument_of["posting:e12"], atoms.instrument_sizes   # {"interview": 40, "posting": 900}
 """
 from __future__ import annotations
 
@@ -38,6 +45,7 @@ class Atoms:
         self.rows = [_canon(dict(r)) for r in rows]
         self._sources = None
         self._meta = None
+        self._instrument_of = None
 
     @classmethod
     def read(cls, path) -> "Atoms":
@@ -46,6 +54,35 @@ class Atoms:
 
     @classmethod
     def from_rows(cls, rows) -> "Atoms":
+        return cls(rows)
+
+    @classmethod
+    def coerce(cls, atoms) -> "Atoms":
+        """An Atoms, a path to its CSV, a list of rows, or {instrument: any of those} -> Atoms."""
+        if isinstance(atoms, Atoms):
+            return atoms
+        if isinstance(atoms, dict):
+            return cls.combine(atoms)
+        if isinstance(atoms, (str, Path)):
+            return cls.read(atoms)
+        return cls(atoms)
+
+    @classmethod
+    def combine(cls, by_instrument: dict) -> "Atoms":
+        """{instrument: Atoms | CSV path | rows} -> one table with an `instrument` column and source ids
+        namespaced "<instrument>:<source>"."""
+        rows = []
+        for inst, part in by_instrument.items():
+            inst = str(inst).strip()
+            if not inst or ":" in inst:
+                raise ValueError(f"instrument names must be non-empty and contain no ':' (got {inst!r})")
+            for r in cls.coerce(part).rows:
+                r = dict(r)
+                if (r.get("instrument") or inst) != inst:
+                    raise ValueError(f"a row under instrument {inst!r} says instrument={r['instrument']!r}")
+                r["instrument"] = inst
+                r["source"] = f"{inst}:{r['source']}"
+                rows.append(r)
         return cls(rows)
 
     def write(self, path, legacy=False) -> None:
@@ -79,6 +116,30 @@ class Atoms:
     @property
     def tasks(self) -> list[str]:
         return list(self.sources)
+
+    @property
+    def instrument_of(self) -> dict[str, str]:
+        """{source id: instrument}; {} when the table has no `instrument` column (a single-instrument corpus).
+        A source id under two instruments is an error: a source is one interview, one posting."""
+        if self._instrument_of is None:
+            out = {}
+            if any(r.get("instrument") for r in self.rows):
+                for r in self.rows:
+                    src, inst = r["source"], (r.get("instrument") or "").strip()
+                    if not inst:
+                        raise ValueError(f"source {src!r} has no instrument, but other rows do")
+                    if out.setdefault(src, inst) != inst:
+                        raise ValueError(f"source {src!r} appears under instruments {out[src]!r} and {inst!r}")
+            self._instrument_of = out
+        return self._instrument_of
+
+    @property
+    def instrument_sizes(self) -> dict[str, int]:
+        """{instrument: distinct sources} — the denominator of a share floor."""
+        n = defaultdict(int)
+        for inst in self.instrument_of.values():
+            n[inst] += 1
+        return dict(sorted(n.items()))
 
     def records(self) -> list[dict]:
         return [{"task": t, "sources": sorted(s), "prevalence": len(s)} for t, s in self.sources.items()]

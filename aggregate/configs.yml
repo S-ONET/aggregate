@@ -9,6 +9,22 @@ min_sources: 2               # the publishing floor: a family needs this many di
 cache_dir: cache/aggregation # verdict cache (one JSON per section) and the embedding store; relative to the workdir
 prompt_set: ""               # "fja": <name>_fja.txt is tried before <name>.txt for every prompt
 prompt_dirs: []              # extra prompt trees searched after the package's own (a source's prompts)
+
+# Several kinds of data in one build. Empty = one instrument, the build is byte-identical to before. With
+# instruments, the atoms carry an `instrument` column (Atoms.combine / Aggregator.build({"interview": ...}))
+# and a family publishes when it (1) has min_sources distinct sources in all, (2) is in scope for at least one
+# instrument, and (3) clears the floor of EVERY instrument the scope judge (models.scope) puts it in scope
+# for. An instrument's floor is max(its min_sources (default 1), ceil(min_share * its sources)); an out-of-scope instrument
+# asks nothing of the family, so a posting-only task is not held to the interviews' floor or vice versa.
+#   instruments:
+#     interview:
+#       scope: Tasks a worker describes doing day to day, including routine and informal work.
+#       min_share: 0.05      # 5% of the interviews
+#     posting:
+#       scope: Duties an employer hires for and screens on; not routine a worker does unasked.
+#       min_sources: 3
+#       min_share: 0.01
+instruments: {}
 prewarm: {on: true, wait_s: 45, max_out: 64}
 usage_log: ""                # a path: one JSON line per model call, so a killed run keeps its cost ("" = off)
 retries: {attempts: 4, backoff_s: 30}
@@ -22,6 +38,7 @@ models:
   merge:          {model: gpt-5.4}
   sharpen:        {model: claude-sonnet-4-6, effort: medium}
   covers:         {model: gpt-5.4-mini}
+  scope:          {model: gpt-5.4-mini, effort: low}    # is a task in scope for an instrument (instruments only)
   dispose:        {model: gpt-5.4-mini}
   writing:        {model: gpt-5.4-mini, effort: low, tag: WO4}
   normalize:      {model: gpt-5.4-mini, effort: low}

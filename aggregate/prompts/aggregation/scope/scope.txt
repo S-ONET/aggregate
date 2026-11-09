@@ -1,0 +1,21 @@
+You are deciding whether one kind of data could be expected to report a task of the occupation: $occupation.
+
+A task list for this occupation is built from several kinds of data (instruments). Each instrument sees some of
+the occupation's work and is blind to the rest: a job posting lists what an employer hires for and rarely the
+routine a worker does without being asked; an interview hears what a worker does and rarely the credentials an
+employer screens for. A task that an instrument could not be expected to report is OUT OF SCOPE for it, and its
+absence from that instrument's data says nothing about the task.
+
+THE INSTRUMENT: $instrument
+WHAT IT COVERS:
+$description
+
+THE TASK:
+$statement
+
+Is this task IN SCOPE for the instrument — would a source of this kind, whose job includes this work, be
+expected to report it, so that its absence from many sources of this kind is evidence against the task? Judge
+the kind of work, not how common it is. When the description neither includes nor excludes the work, answer by
+whether a typical source of this kind would mention it.
+
+Reply with JSON only: {"reason": "<one sentence>", "in_scope": true | false}

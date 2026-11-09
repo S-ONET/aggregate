@@ -111,6 +111,45 @@ models:
   write: {model: gpt-5.4}
 ```
 
+### Several instruments
+
+A list can be built from several kinds of data at once — interviews and job postings, say. Each kind is an
+*instrument*, and each sees only part of the work: postings list what employers hire for and rarely the routine
+nobody asks for; interviews hear the routine and rarely the credentials. So one floor for everything would
+either drop posting-only duties for lack of interviews or keep tasks only one instrument could ever report.
+
+Pass the atoms per instrument, and describe each instrument in the config:
+
+```python
+build = agg.build({"interview": Atoms.read("interviews.csv"), "posting": Atoms.read("postings.csv")})
+atoms = agg.process({"interview": interview_rows, "posting": posting_rows})   # or process them per instrument
+```
+
+```yaml
+min_sources: 2               # still required in all
+instruments:
+  interview:
+    scope: Tasks a worker describes doing day to day, including routine and informal work.
+    min_share: 0.05          # 5% of the interviews
+  posting:
+    scope: Duties an employer hires for and screens on; not routine a worker does unasked.
+    min_sources: 3
+    min_share: 0.01
+```
+
+`Atoms.combine` (which `build` and `process` call on a dict) adds an `instrument` column and namespaces each
+source id as `interview:s17`, so ids from different instruments never collide; the same task text from two
+instruments is one atom with sources from both. A scope judge (`models.scope`, `prompts/aggregation/scope/scope.txt`)
+reads each instrument's `scope` text and decides, per statement, whether that instrument could be expected to
+report the task. A family publishes when it has `min_sources` sources in all, is in scope for at least one
+instrument, and, for **every** instrument it is in scope for, has `max(min_sources, ceil(min_share × that
+instrument's sources))` of that instrument's sources (an instrument's `min_sources` defaults to 1). An
+out-of-scope instrument asks nothing of the family. The same rule decides cluster's admissions, fusion's splits,
+refile's demotions and the invariant check. Each published family carries `scope` (the verdict per instrument),
+`scope_for` (the hash of the text judged) and `by_instrument` (its sources per instrument); `meta.instruments`
+records each instrument's size and floor. With `instruments: {}` (the default) nothing changes and no scope call
+is made.
+
 ## Evaluating a list
 
 An evaluation compares lists of statements on data that was not used to build them. Each step takes the

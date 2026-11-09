@@ -5,6 +5,7 @@
     agg = Aggregator(Config.load("configs.yml"), client=openai.OpenAI(), workdir="results/lawyers")
     atoms = agg.process(rows)                 # raw task texts -> atoms (normalize + dedup)
     build = agg.build(atoms)                  # the chain -> build.json under the workdir; invariants checked
+    build = agg.build({"interview": a, "posting": b})   # several instruments (config.instruments says their scope)
     agg.evaluate.coverage(lists, heldout)     # held-out evaluation, every data input passed in
     agg.judges.covers(atom, statement)        # the judges as an instrument
 """
@@ -62,8 +63,11 @@ class Aggregator:
 
     # ── processing ────────────────────────────────────────────────────────────────────────────────
     def process(self, rows, **kw) -> Atoms:
-        """Raw task rows -> atoms: normalize (split, filter, rewrite, debrand) then dedup."""
+        """Raw task rows -> atoms: normalize (split, filter, rewrite, debrand) then dedup. `rows` may also be
+        {instrument: rows}: each is processed on its own and the results combined (Atoms.combine)."""
         from .processing import dedup, normalize
+        if isinstance(rows, dict):
+            return Atoms.combine({inst: self.process(r, **kw) for inst, r in rows.items()})
         return dedup(normalize(self._root, rows, **kw))
 
     def condense(self, atoms, **kw):
@@ -74,18 +78,18 @@ class Aggregator:
     # ── the chain ─────────────────────────────────────────────────────────────────────────────────
     def build(self, atoms, *, standing=None, fresh=False, max_cycles=None, workdir=None, occupation=None,
               reference_statements=None, on_stage=None) -> dict:
-        """Build the task list for `atoms` (an Atoms or a path to its CSV). `standing` is an adopted list
-        (final.json's dict) to amend, or the continuity registry when `fresh`."""
+        """Build the task list for `atoms`: an Atoms, a path to its CSV, or {instrument: Atoms | path} for a
+        multi-instrument build (config.instruments describes each instrument's scope and floor). `standing` is an
+        adopted list (final.json's dict) to amend, or the continuity registry when `fresh`."""
         from .aggregation import chain
-        if not isinstance(atoms, Atoms):
-            atoms = Atoms.read(atoms)
+        atoms = Atoms.coerce(atoms)
         self._last_atoms = atoms
         ctx = self.context(atoms, workdir=workdir, occupation=occupation, reference_statements=reference_statements)
         return chain.build(ctx, standing=standing, fresh=fresh, max_cycles=max_cycles, on_stage=on_stage)
 
     def verify(self, build, atoms=None) -> list[str]:
         from .aggregation import verify
-        atoms = atoms if atoms is not None else self._last_atoms
+        atoms = Atoms.coerce(atoms) if atoms is not None else self._last_atoms
         return verify.invariants(self.context(atoms), build)
 
     # ── accounting ────────────────────────────────────────────────────────────────────────────────

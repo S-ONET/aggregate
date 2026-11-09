@@ -81,6 +81,8 @@ def recount(ctx, fams):
     for f in fams:
         w = sorted({x for m in (f.get("members") or []) for x in W.get(m, ())})
         f["sources"], f["prevalence"] = w, len(w)
+        if ctx.floor.multi:
+            f["by_instrument"] = ctx.floor.counts(w)
         if blocks.block_by(ctx):
             f["function"] = blocks.function_of(ctx, f.get("members") or [])
             f["duty"] = blocks.duty_of(ctx, f.get("members") or [])

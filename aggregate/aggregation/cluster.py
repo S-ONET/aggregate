@@ -168,13 +168,15 @@ def group_chunked(ctx, pile):
     return merged
 
 
-def admit(groups, sources, min_sources):
-    """Apply the source floor -> (kept, thin). THE ONE DEFINITION of the floor."""
+def admit(groups, sources, min_sources, floor=None):
+    """Apply the source floor -> (kept, thin). `floor(head, sources) -> bool` is the rule (ctx.floor.clears,
+    aggregation/floor.py); without it, min_sources distinct sources."""
     kept, thin = [], []
     for g in groups:
         w = sorted(set().union(*(set(sources[m]) for m in g["members"])))
         rec = {"sid": families.new_sid(), "head": g["head"], "members": g["members"], "sources": w, "prevalence": len(w)}
-        (kept if len(w) >= min_sources else thin).append(rec)
+        ok = floor(g["head"], w) if floor is not None else len(w) >= min_sources
+        (kept if ok else thin).append(rec)
     return kept, thin
 
 
@@ -183,7 +185,9 @@ def seed(ctx) -> dict:
     atoms = ctx.atoms
     return {"meta": {"occupation": ctx.occupation, "code": atoms.code, "title": atoms.title,
                      "model": ctx.model("cluster"), "effort": ctx.effort("cluster"), "min_sources": ctx.min_sources,
-                     "n_atoms": len(atoms), "prompt": sha256(ctx.prompt("cluster", occupation="$OCC"))[:12]},
+                     "n_atoms": len(atoms), "prompt": sha256(ctx.prompt("cluster", occupation="$OCC"))[:12],
+                     **({"instruments": {i: {"sources": n, "floor": ctx.floor.need(i)} for i, n in ctx.floor.sizes.items()}}
+                        if ctx.floor.multi else {})},
             "core": [], "released": sorted(atoms.tasks)}
 
 
@@ -214,7 +218,11 @@ def propose(ctx, build) -> dict:
     founded = []
     if len(pile) >= 2:
         groups = group_chunked(ctx, pile)
-        fams, _thin = admit(groups, {m: set(W.get(m) or ()) for m in pile}, ctx.min_sources)
+        fl = ctx.floor
+        if fl.multi:
+            fl.prefill([(g["head"], {w for m in g["members"] for w in W.get(m) or ()}) for g in groups])
+        fams, _thin = admit(groups, {m: set(W.get(m) or ()) for m in pile}, ctx.min_sources,
+                            floor=fl.clears if fl.multi else None)
         consumed = set()
         for f in fams:
             ms = sorted(set(f["members"]) - consumed - filed)
