@@ -1,8 +1,8 @@
 # aggregate — every knob, with its default. Config.load("your.yml") overlays a file on this one by key;
 # Config.load(models={"cluster": {"model": "gpt-5.5"}}) overlays a dict. API keys and base URLs are the one thing
-# that stays in the environment: OPENAI_API_KEY (or LITELLM_OPENAI_API_KEY + LITELLM_OPENAI_BASE_URL, or
-# OPENAI_BASE_URL), and ONET_CLAUDE_API_KEY + ONET_CLAUDE_BASE_URL for claude-* models through an OpenAI-
-# compatible gateway. Changing a MODEL or a PROMPT changes every cache key of that judge: a cold re-spend.
+# that stays in the environment: OPENAI_API_KEY [+ OPENAI_BASE_URL], CLAUDE_API_KEY + CLAUDE_BASE_URL for
+# claude-* models through an OpenAI-compatible gateway, or one LLM_API_KEY + LLM_BASE_URL for every model (see
+# engine.py). Changing a MODEL or a PROMPT changes every cache key of that judge: a cold re-spend.
 
 seed: 0                      # best-effort reproducibility on a cache miss
 min_sources: 2               # the publishing floor: a family needs this many distinct sources (workers, employers)

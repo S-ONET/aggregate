@@ -9,10 +9,16 @@
 
 The client contract is the OpenAI SDK surface the package uses: `.chat.completions.create(**kw)` and
 `.embeddings.create(model=, input=)`; the Batch API prefill additionally wants `.files`, `.batches` and
-`.models`, and degrades to live calls without them. Default routing: claude-* models go to an OpenAI-compatible
-gateway (ONET_CLAUDE_API_KEY, ONET_CLAUDE_BASE_URL); everything else goes direct to OPENAI_API_KEY (or
-DIYI_API_KEY) at OPENAI_BASE_URL, else through LITELLM_OPENAI_BASE_URL + LITELLM_OPENAI_API_KEY. Clients are
-built lazily, so an Engine needs no key until the first call. SDK retries are OFF: `with_retries` is the one
+`.models`, and degrades to live calls without them. Default routing, from the environment:
+
+    LLM_API_KEY + LLM_BASE_URL           one OpenAI-compatible endpoint (e.g. a LiteLLM proxy) for every model
+    OPENAI_API_KEY [+ OPENAI_BASE_URL]   gpt-* / o-series models, embeddings, the Batch API (default api.openai.com)
+    CLAUDE_API_KEY + CLAUDE_BASE_URL     claude-* models, through an OpenAI-compatible gateway (no default URL)
+
+LLM_API_KEY, when set, is the key for both routes; LLM_BASE_URL, when set, sends both routes to one endpoint. No
+call goes to an endpoint the environment does not name. The project-specific names of 0.1.x (ONET_CLAUDE_API_KEY,
+ONET_CLAUDE_BASE_URL, DIYI_API_KEY, LITELLM_OPENAI_API_KEY, LITELLM_OPENAI_BASE_URL) are still read as fallbacks,
+with a deprecation warning. Clients are built lazily, so an Engine needs no key until the first call. SDK retries are OFF: `with_retries` is the one
 retry policy, on the provider's timescale.
 """
 from __future__ import annotations
@@ -26,7 +32,25 @@ from pathlib import Path
 
 import openai
 
-CLAUDE_GATEWAY = "https://aiapi-prod.stanford.edu/v1"
+# 0.1.x names, read only when the generic ones are unset: new name -> old name
+_DEPRECATED = {"CLAUDE_API_KEY": "ONET_CLAUDE_API_KEY", "CLAUDE_BASE_URL": "ONET_CLAUDE_BASE_URL",
+               "OPENAI_API_KEY": "DIYI_API_KEY"}
+_warned: set = set()
+
+
+def _env(*names):
+    """The first of `names` set in the environment, then their deprecated 0.1.x names. -> (name, value) | (None, None)"""
+    for n in names:
+        if os.environ.get(n):
+            return n, os.environ[n]
+    for n in names:
+        old = _DEPRECATED.get(n)
+        if old and os.environ.get(old):
+            if old not in _warned:
+                _warned.add(old)
+                print(f"  engine: {old} is deprecated; set {n}", file=sys.stderr)
+            return old, os.environ[old]
+    return None, None
 
 
 def bare_model(model) -> str:
@@ -40,28 +64,32 @@ def is_reasoning(model) -> bool:
 
 
 def _default_router(model):
-    """One lazily built client per route, from the environment."""
-    gateway = bool(model) and bare_model(model).startswith("claude")
-    if gateway:
-        key = os.environ.get("ONET_CLAUDE_API_KEY")
+    """One client per route, from the environment (see the module docstring)."""
+    if bare_model(model).startswith("claude"):
+        kname, key = _env("LLM_API_KEY", "CLAUDE_API_KEY")
+        uname, url = _env("LLM_BASE_URL", "CLAUDE_BASE_URL")
         if not key:
-            raise RuntimeError("no ONET_CLAUDE_API_KEY for a claude-* model (or pass Engine(client=...))")
-        return openai.OpenAI(api_key=key, timeout=60.0, max_retries=0,
-                             base_url=os.environ.get("ONET_CLAUDE_BASE_URL", CLAUDE_GATEWAY))
-    base_url = os.environ.get("OPENAI_BASE_URL")
-    api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("DIYI_API_KEY")
-    if api_key and not base_url:
-        base_url = "https://api.openai.com/v1"
-    if not base_url and os.environ.get("LITELLM_OPENAI_BASE_URL"):
-        base_url = os.environ["LITELLM_OPENAI_BASE_URL"]
-        api_key = os.environ.get("LITELLM_OPENAI_API_KEY") or api_key
-    if not api_key:
-        raise RuntimeError("no OPENAI_API_KEY (nor LITELLM_OPENAI_API_KEY) available; or pass Engine(client=...)")
-    kw = {"api_key": api_key, "timeout": 60.0, "max_retries": 0}
-    if base_url:
-        kw["base_url"] = base_url
-    print(f"  engine: OpenAI-side calls to {base_url or 'api.openai.com'}", file=sys.stderr)
-    return openai.OpenAI(**kw)
+            raise RuntimeError(f"{model} needs CLAUDE_API_KEY (or LLM_API_KEY), or pass Engine(client=...)")
+        if not url:
+            raise RuntimeError(f"{model} needs an OpenAI-compatible endpoint that serves Claude models: set "
+                               "CLAUDE_BASE_URL (or LLM_BASE_URL), or pass Engine(client=...)")
+    else:
+        kname, key = _env("LLM_API_KEY", "OPENAI_API_KEY")
+        uname, url = _env("LLM_BASE_URL", "OPENAI_BASE_URL")
+        if not key and os.environ.get("LITELLM_OPENAI_API_KEY"):          # 0.1.x: a LiteLLM proxy, key + URL
+            kname, key = "LITELLM_OPENAI_API_KEY", os.environ["LITELLM_OPENAI_API_KEY"]
+            uname, url = (uname, url) if url else ("LITELLM_OPENAI_BASE_URL", os.environ.get("LITELLM_OPENAI_BASE_URL"))
+            if "LITELLM_OPENAI_API_KEY" not in _warned:
+                _warned.add("LITELLM_OPENAI_API_KEY")
+                print("  engine: LITELLM_OPENAI_API_KEY / _BASE_URL are deprecated; set LLM_API_KEY / LLM_BASE_URL",
+                      file=sys.stderr)
+        if not key:
+            raise RuntimeError(f"no OPENAI_API_KEY (or LLM_API_KEY) for {model or 'the OpenAI API'}; "
+                               "or pass Engine(client=...)")
+        url = url or "https://api.openai.com/v1"
+    print(f"  engine: {'Claude' if bare_model(model).startswith('claude') else 'OpenAI-side'} calls using {kname} "
+          f"via {url}", file=sys.stderr)
+    return openai.OpenAI(api_key=key, base_url=url, timeout=60.0, max_retries=0)
 
 
 try:
