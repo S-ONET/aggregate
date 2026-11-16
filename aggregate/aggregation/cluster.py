@@ -132,15 +132,69 @@ def _draw(ctx, labels, d=1):
     return ctx.cache.memo("rollup_decompose_groups", key, compute)
 
 
-def _consensus(partitions, labels, threshold=0.5):
-    """The partition several draws agree on (evidence accumulation) -> [{"head", "members"}].
+def _components(adj):
+    """Connected components of a boolean adjacency matrix -> a component id per row, numbered by first row."""
+    comp = np.full(len(adj), -1)
+    c = 0
+    for start in range(len(adj)):
+        if comp[start] >= 0:
+            continue
+        comp[start], stack = c, [start]
+        while stack:
+            for j in np.flatnonzero(adj[stack.pop()] & (comp < 0)):
+                comp[j] = c
+                stack.append(j)
+        c += 1
+    return comp
 
-    The co-association of two atoms is the share of draws that filed them in the same family; an atom a draw
-    left unfiled co-occurs with nothing in that draw. Families are grown by average linkage and two join only
-    while their mean co-association is strictly above `threshold` (0.5 = a strict majority of the draws), so
-    an atom filed in no more than that share of the draws stays unfiled. Each family takes the heading of the
-    draw family it overlaps most (Jaccard; ties to the earlier draw), a heading being used once where the
-    draws offer enough of them. Deterministic: members sorted, families ordered by their first member."""
+
+def _kmeans(X, weight, k, seed=0, restarts=10, iters=100):
+    """Weighted k-means (k-means++ starts, the best of `restarts` by inertia) -> a cluster id per row."""
+    rng = np.random.default_rng(seed)
+    x2 = (X ** 2).sum(1)
+
+    def dist2(centres):
+        return np.maximum(x2[:, None] - 2 * X @ centres.T + (centres ** 2).sum(1)[None, :], 0.0)
+    best, best_cost = None, np.inf
+    for _ in range(restarts):
+        centres = np.empty((k, X.shape[1]))
+        centres[0] = X[rng.choice(len(X), p=weight / weight.sum())]
+        near = dist2(centres[:1])[:, 0]
+        for c in range(1, k):
+            p = near * weight
+            centres[c] = X[rng.choice(len(X), p=p / p.sum()) if p.sum() > 0 else rng.integers(len(X))]
+            near = np.minimum(near, dist2(centres[c:c + 1])[:, 0])
+        lab = None
+        for _ in range(iters):
+            d2 = dist2(centres)
+            new = d2.argmin(1)
+            if lab is not None and (new == lab).all():
+                break
+            lab = new
+            tot = np.bincount(lab, weights=weight, minlength=k)
+            sums = np.zeros_like(centres)
+            np.add.at(sums, lab, X * weight[:, None])
+            centres[tot > 0] = sums[tot > 0] / tot[tot > 0, None]
+        cost = float((d2[np.arange(len(X)), lab] * weight).sum())
+        if cost < best_cost - 1e-12:
+            best, best_cost = lab, cost
+    return best
+
+
+def _consensus(partitions, labels, min_filed=0.5, seed=0):
+    """The consensus of several draws: a clustering of their co-occurrence matrix -> [{"head", "members"}].
+
+    C[a, b] is the share of draws that filed atoms a and b in the same family (an atom a draw left unfiled
+    co-occurs with nothing in that draw; C[a, a] is the share of draws that filed a at all). An atom filed in
+    no more than `min_filed` of the draws stays unfiled. The rest are partitioned by spectral clustering of C
+    (the leading eigenvectors of D^-1/2 C D^-1/2, rows normalised, then k-means), so a family is a block of
+    the matrix as a whole rather than a pairwise rule. k is the median number of families the draws made
+    over those atoms, and never fewer than the matrix's connected components; a cluster whose atoms no draw
+    ever linked is split back into its components, so atoms never filed together are never joined. Atoms
+    every draw treated alike have identical rows and are clustered as one weighted row, which is exact.
+    Each family takes the heading of the draw family it overlaps most (Jaccard; ties to the earlier draw), a
+    heading being used once where the draws offer enough of them. Deterministic: members sorted, families
+    ordered by their first member."""
     n = len(partitions)
     if not n:
         return []
@@ -151,36 +205,42 @@ def _consensus(partitions, labels, threshold=0.5):
             for m in g["members"]:
                 if m in known:
                     sig.setdefault(m, [-1] * n)[d] = gi
-    by_sig = defaultdict(list)                          # atoms every draw treated alike start as one block
+    by_sig = defaultdict(list)                          # identical rows of C collapse to one weighted row
     for lab in sorted(sig):
-        if sum(x >= 0 for x in sig[lab]) / n > threshold + 1e-9:   # can never clear the threshold otherwise
+        if sum(x >= 0 for x in sig[lab]) / n > min_filed + 1e-9:
             by_sig[tuple(sig[lab])].append(lab)
     if not by_sig:
         return []
-    clusters = [list(ms) for ms in by_sig.values()]
+    rows = [list(ms) for ms in by_sig.values()]
     S = np.array(list(by_sig), dtype=np.int64)
-    b = len(clusters)
+    b = len(rows)
+    size = np.array([len(ms) for ms in rows], dtype=float)
     C = np.zeros((b, b))
     for d in range(n):
         col = S[:, d]
         C += (col[:, None] == col[None, :]) & (col >= 0)[:, None]
     C /= n
-    np.fill_diagonal(C, -1.0)
-    size = np.array([len(ms) for ms in clusters], dtype=float)
-    while b > 1:
-        i, j = divmod(int(np.argmax(C)), b)
-        if C[i, j] <= threshold + 1e-9:
-            break
-        merged = (size[i] * C[i] + size[j] * C[j]) / (size[i] + size[j])   # average linkage, exact by size
-        C[i, :] = merged
-        C[:, i] = merged
-        C[j, :] = -1.0
-        C[:, j] = -1.0
-        C[i, i] = -1.0
-        size[i] += size[j]
-        clusters[i] += clusters[j]
-        clusters[j] = None
-    fams = sorted(sorted(ms) for ms in clusters if ms)
+    comp = _components(C > 0)
+    k = int(np.floor(np.median([len(set(S[:, d][S[:, d] >= 0])) for d in range(n)]) + 0.5))
+    k = min(b, max(k, int(comp.max()) + 1))
+    if k == b:
+        lab = np.arange(b)
+    elif k == comp.max() + 1:
+        lab = comp
+    else:
+        deg = C @ size
+        A = np.sqrt(size)[:, None] * (C / np.sqrt(np.outer(deg, deg))) * np.sqrt(size)[None, :]
+        _, vecs = np.linalg.eigh(A)
+        U = vecs[:, -k:]
+        U = U / np.maximum(np.linalg.norm(U, axis=1, keepdims=True), 1e-12)
+        lab = _kmeans(U, size, k, seed)
+    fams = []
+    for c in sorted(set(lab.tolist())):
+        idx = np.flatnonzero(lab == c)
+        sub = _components(C[np.ix_(idx, idx)] > 0)      # never join atoms no draw filed together
+        for sc in range(int(sub.max()) + 1):
+            fams.append(sorted(m for i in idx[sub == sc] for m in rows[i]))
+    fams.sort()
     where = defaultdict(set)                            # atom -> the draw families holding it
     for d, groups in enumerate(partitions):
         for gi, g in enumerate(groups):
@@ -208,15 +268,16 @@ def n_draws(ctx, draws=None):
 def group(ctx, task_labels, draws=None):
     """Cluster `task_labels` into families -> [{"head", "members"}]. `draws` (default models.cluster.draws,
     1) is how many times the clustering is repeated: one draw is returned as it came; several are drawn in
-    parallel, each in its own cache slot, and reduced to their consensus (`_consensus`, at
-    models.cluster.consensus)."""
+    parallel, each in its own cache slot, and reduced to their consensus: a spectral
+    clustering of the draws' co-occurrence matrix (`_consensus`)."""
     labels = sorted(task_labels)
     n = n_draws(ctx, draws)
     if n == 1:
         return _draw(ctx, labels)
     with ThreadPoolExecutor(max_workers=min(n, ctx.workers_for("cluster"))) as ex:
         parts = list(ex.map(lambda d: _draw(ctx, labels, d) or [], range(1, n + 1)))
-    got = _consensus(parts, labels, float(ctx.config.get("models.cluster.consensus", 0.5)))
+    got = _consensus(parts, labels, float(ctx.config.get("models.cluster.min_filed", 0.5)),
+                     int(ctx.config.get("seed", 0) or 0))
     print(f"  group: consensus of {n} draws ({', '.join(str(len(p)) for p in parts)} group(s)) -> {len(got)} group(s), "
           f"{sum(len(g['members']) for g in got)}/{len(labels)} atoms filed", file=sys.stderr)
     return got

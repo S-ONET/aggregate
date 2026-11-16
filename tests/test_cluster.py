@@ -131,13 +131,37 @@ def test_consensus_leaves_a_minority_filing_unfiled():
 
 def test_consensus_of_two_draws_is_what_both_agree_on():
     draws = [[_fam("Wash", "a", "b", "c")], [_fam("Wash up", "a", "b"), _fam("Dry", "c", "d")]]
-    # c was filed in both draws but never with the same company: a family of its own, which propose drops
+    # d was filed in one draw of two and stays out; c was filed in both, with different company each time
     assert cluster._consensus(draws, ["a", "b", "c", "d"]) == [_fam("Wash up", "a", "b"), _fam("Dry", "c")]
 
 
 def test_consensus_of_identical_draws_is_the_draw():
     one = [_fam("Wash", "a", "b"), _fam("Mop", "c"), _fam("Dry", "d", "e")]
     assert cluster._consensus([one, one, one], list("abcde")) == sorted(one, key=lambda g: g["members"])
+
+
+def test_consensus_never_joins_atoms_no_draw_filed_together():
+    one = [_fam("Wash", "a", "b"), _fam("Mop", "c", "d"), _fam("Dry", "e", "f")]
+    two = [_fam("Wash", "a", "b"), _fam("Mop", "c", "d", "e", "f")]
+    got = cluster._consensus([one, two, two], list("abcdef"))            # k = 2, and two components
+    assert got == [_fam("Wash", "a", "b"), _fam("Mop", "c", "d", "e", "f")]
+    apart = [[_fam("Wash", "a", "b", "c", "d")], [_fam("Wash", "a", "b"), _fam("Mop", "c", "d")],
+             [_fam("Rinse", "a", "b"), _fam("Sweep", "c", "d")], [_fam("Wash", "a", "b"), _fam("Mop", "c", "d")],
+             [_fam("Clean", "a", "b", "c", "d")]]
+    assert [g["members"] for g in cluster._consensus(apart, list("abcd"))] == [["a", "b"], ["c", "d"]]
+
+
+def test_consensus_recovers_noisy_blocks():
+    import numpy as np
+    rng = np.random.default_rng(1)
+    labels = [f"t{i:03d}" for i in range(120)]
+    truth = np.arange(120) // 20
+    draws = []
+    for d in range(5):
+        lab = np.where(rng.random(120) < 0.15, rng.integers(0, 6, 120), truth)
+        draws.append([_fam(f"h{d}{k}", *[l for l, x in zip(labels, lab) if x == k]) for k in range(6)])
+    got = cluster._consensus(draws, labels)
+    assert [g["members"] for g in got] == [labels[i:i + 20] for i in range(0, 120, 20)]
 
 
 def test_consensus_takes_the_best_overlapping_head_and_uses_it_once():

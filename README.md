@@ -112,10 +112,11 @@ models:
 ```
 
 One clustering call varies from draw to draw. `models.cluster.draws` (or `agg.build(atoms, cluster_draws=5)`
-for one build) repeats every clustering that many times and keeps the consensus: atoms end up in one family
-when more than `models.cluster.consensus` (0.5) of the draws filed them together, and an atom the draws
-disagree on stays in the pile for the next cycle. Each draw is one more call per clustering and is cached
-separately; the default of 1 is the single draw. Use an odd number: with 2, both draws have to agree.
+for one build) repeats every clustering that many times and keeps the consensus. The draws give a
+co-occurrence matrix (the share of draws that filed two atoms in the same family), and the consensus is a
+spectral clustering of that matrix into as many families as the median draw made. An atom filed in no more
+than `models.cluster.min_filed` (0.5) of the draws stays in the pile for the next cycle. Each draw is one
+more call per clustering and is cached separately; the default of 1 is the single draw.
 
 ### Several instruments
 
