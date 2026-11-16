@@ -211,6 +211,30 @@ verdicts:
  "per_task": [{"source": "job_8812", "text": "Draft discovery requests.", "ours": True, "reference": False, "n_cover": {"ours": 2, "reference": 0}}, "..."]}
 ```
 
+## How much a build varies
+
+A build is one outcome of two things that could have gone otherwise: which sources reported, and the
+clustering draw. `agg.variance` reruns the build on `b` subsamples of a fraction of the sources, `r` times each
+with an independent draw, and reports how far the runs disagree:
+
+```python
+res = agg.variance(atoms, r=3, b=5, frac=0.8)      # 15 full builds under results/lawyers/variance/
+
+res["variance"]["n_clusters"]    # {"mean": 41.3, "var": 9.2, "sd": 3.0, "between": 6.1, "within": 3.4, "values": [[...]]}
+res["variance"]["beta"]          # the same for the exposure rubrics, the share of texts filed, prevalence
+res["cooccurrence"]              # texts x texts: share of the runs holding both that filed them together
+res["stability"]["Draft motions for court."]   # {"stability": 0.92, "filed": 1.0, "n_runs": 12}
+res["pairwise"]["ami"]           # {"matrix": runs x runs, "mean", "within_subsample", "between_subsamples"}
+```
+
+`between` is the variance of the subsample means (the sources), `within` the variance across repetitions of one
+subsample (the draw alone). A text's `stability` is its mean co-occurrence with the texts it was ever filed
+with: 1 when its companions never change. `pairwise` compares every two runs on the texts both hold, by adjusted
+mutual information, adjusted Rand index and variation of information (`vi`, and `vi_norm` on 0-1). Sources are
+subsampled within each instrument. Only the clustering is redrawn in a repetition — every other verdict is the
+cached function of its inputs — so the cost is the `b * r` builds less what they share, and a rerun reads
+finished runs back. Defaults are the `variance` block of `configs.yml`; other keywords go to each build.
+
 ## Amending an adopted list
 
 A build you have reviewed and adopted is `final.json`: a copy of a `build.json` made by you, never by the
@@ -242,6 +266,7 @@ ledgers under `workdir/ledgers/` replay settled hearings. Cache keys are an inte
 | `judges.py` | `covers`, `overlaps`, `duties`, `dispose`, `merge_or_separate`, `sharpen`, `writing_defects`, `relation`, `embed` |
 | `aggregation/` | `cluster`, `synthesize`, `fusion`, `overlap`, `refile`, `verify`, `blocks`, and `chain.build` |
 | `processing/` | `normalize`, `dedup`, `condense`, `lines` |
+| `variance/` | `subsample`, `replicate`, `metrics`, `partitions`, and `variance.run` |
 | `evaluate/` | `coverage`, `silhouette`, `incidence`, `crosswalk`, `exclusivity`, `occupational`, `exposure`, `equal_length`, `discovery` |
 | `prompts/` | every prompt, by bare name; `prompt_set: fja` picks `<name>_fja.txt` variants |
 | `tests/` | the offline suite; `test_cache_keys.py` is the key guard |

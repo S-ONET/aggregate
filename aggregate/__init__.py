@@ -7,6 +7,7 @@
     build = agg.build(atoms)                  # the chain -> build.json under the workdir; invariants checked
     build = agg.build({"interview": a, "posting": b})   # several instruments (config.instruments says their scope)
     agg.evaluate.coverage(lists, heldout)     # held-out evaluation, every data input passed in
+    agg.variance(atoms, r=3, b=5, frac=0.8)   # the build's variance over source subsamples and redraws
     agg.judges.covers(atom, statement)        # the judges as an instrument
 """
 from __future__ import annotations
@@ -86,6 +87,13 @@ class Aggregator:
         self._last_atoms = atoms
         ctx = self.context(atoms, workdir=workdir, occupation=occupation, reference_statements=reference_statements)
         return chain.build(ctx, standing=standing, fresh=fresh, max_cycles=max_cycles, on_stage=on_stage)
+
+    def variance(self, atoms, **kw) -> dict:
+        """How much the build of `atoms` moves: b subsamples of a fraction of the sources x r repetitions, each a
+        full build (aggregate/variance). -> the variance of the list's metrics, the texts' co-occurrence matrix
+        and stability, and the runs' pairwise agreement (AMI, ARI, variation of information)."""
+        from . import variance
+        return variance.run(self, atoms, **kw)
 
     def verify(self, build, atoms=None) -> list[str]:
         from .aggregation import verify

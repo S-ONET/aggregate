@@ -88,6 +88,13 @@ evaluate:
   B_statements: 4000
   permutations: 2000
 
+variance:                    # agg.variance: b subsamples of `frac` of the sources x r repetitions, each a full build
+  r: 3                       # repetitions of each subsample (independent clustering draws)
+  b: 5                       # subsamples
+  frac: 0.8                  # share of the sources in a subsample (within each instrument)
+  seed: 0                    # of the subsampling
+  exposure: true             # rate the exposure rubrics on every run's statements
+
 prices:                      # USD per million tokens, [input, output]; estimates, for the usage report only
   gpt-4o-mini: [0.15, 0.60]
   gpt-5.4-mini: [0.75, 4.50]
