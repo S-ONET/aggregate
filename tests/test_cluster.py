@@ -106,3 +106,117 @@ def test_group_chunked_unions_across_chunks(agg, monkeypatch):
     assert {g["head"]: g["members"] for g in got} == {"Wash dishes": ["a1", "a2", "a3"], "Mop floors": ["b1", "b2"]}
     ctx.config["blocks"]["cluster_chunk"] = 0
     assert cluster.group_chunked(ctx, ["a1", "a2"]) == fake_group(ctx, ["a1", "a2"])
+
+
+# ── consensus over repeated draws ─────────────────────────────────────────────────────────────────
+
+def _fam(head, *members):
+    return {"head": head, "members": sorted(members)}
+
+
+def test_consensus_keeps_what_a_majority_of_draws_agree_on():
+    labels = ["a", "b", "c", "d", "e"]
+    draws = [[_fam("Wash", "a", "b", "c"), _fam("Mop", "d", "e")],
+             [_fam("Wash up", "a", "b"), _fam("Mop floors", "c", "d", "e")],
+             [_fam("Wash dishes", "a", "b", "c"), _fam("Mop the floor", "d", "e")]]
+    got = cluster._consensus(draws, labels)
+    assert got == [_fam("Wash", "a", "b", "c"), _fam("Mop", "d", "e")]   # c went with a, b in two draws of three
+
+
+def test_consensus_leaves_a_minority_filing_unfiled():
+    draws = [[_fam("Wash", "a", "b", "x")], [_fam("Wash", "a", "b")], [_fam("Wash", "a", "b")]]
+    assert cluster._consensus(draws, ["a", "b", "x"]) == [_fam("Wash", "a", "b")]
+    assert cluster._consensus([[_fam("Wash", "a", "b")], [], []], ["a", "b"]) == []
+
+
+def test_consensus_of_two_draws_is_what_both_agree_on():
+    draws = [[_fam("Wash", "a", "b", "c")], [_fam("Wash up", "a", "b"), _fam("Dry", "c", "d")]]
+    # c was filed in both draws but never with the same company: a family of its own, which propose drops
+    assert cluster._consensus(draws, ["a", "b", "c", "d"]) == [_fam("Wash up", "a", "b"), _fam("Dry", "c")]
+
+
+def test_consensus_of_identical_draws_is_the_draw():
+    one = [_fam("Wash", "a", "b"), _fam("Mop", "c"), _fam("Dry", "d", "e")]
+    assert cluster._consensus([one, one, one], list("abcde")) == sorted(one, key=lambda g: g["members"])
+
+
+def test_consensus_takes_the_best_overlapping_head_and_uses_it_once():
+    draws = [[_fam("Clean", "a", "b", "c", "d")],
+             [_fam("Wash", "a", "b"), _fam("Mop", "c", "d")],
+             [_fam("Wash dishes", "a", "b"), _fam("Mop floors", "c", "d")]]
+    assert cluster._consensus(draws, list("abcd")) == [_fam("Wash", "a", "b"), _fam("Mop", "c", "d")]
+    same = [[_fam("Clean", "a", "b"), _fam("Tidy", "c", "d")], [_fam("Tidy", "a", "b"), _fam("Clean", "c", "d")],
+            [_fam("Clean", "a", "b"), _fam("Tidy", "c", "d")]]
+    assert [g["head"] for g in cluster._consensus(same, list("abcd"))] == ["Clean", "Tidy"]
+
+
+def test_group_takes_one_draw_by_default_and_the_consensus_of_several(ctx, monkeypatch):
+    seen = []
+    by_draw = {1: [_fam("Wash", "a", "b", "c")], 2: [_fam("Wash up", "a", "b")], 3: [_fam("Rinse", "a", "b", "c")]}
+
+    def fake_draw(ctx, labels, d=1):
+        seen.append((list(labels), d))
+        return by_draw[d]
+    monkeypatch.setattr(cluster, "_draw", fake_draw)
+    assert cluster.group(ctx, ["c", "a", "b"]) is by_draw[1] and seen == [(["a", "b", "c"], 1)]
+    seen.clear()
+    assert cluster.group(ctx, ["c", "a", "b"], draws=3) == [_fam("Wash", "a", "b", "c")]
+    assert sorted(d for _, d in seen) == [1, 2, 3]
+    seen.clear()
+    ctx.config["models"]["cluster"]["draws"] = 2                        # the config key alone
+    assert cluster.group(ctx, ["c", "a", "b"]) == [_fam("Wash up", "a", "b")]
+    assert sorted(d for _, d in seen) == [1, 2]
+
+
+def test_each_draw_has_its_own_cache_slot_and_the_first_keeps_its_key(ctx, monkeypatch):
+    keys = []
+    monkeypatch.setattr(ctx.cache, "memo", lambda section, key, compute, **k: keys.append(key) or [])
+    labels = [f"task {i}" for i in range(10)]
+    cluster.group(ctx, labels)
+    first = keys[-1]
+    keys.clear()
+    cluster.group(ctx, labels, draws=3)
+    assert len(set(keys)) == 3 and first in keys
+
+
+def test_a_repeated_draw_offsets_the_seed(ctx, monkeypatch):
+    seeds = []
+
+    class _R:
+        class _C:
+            finish_reason = "stop"
+
+            class message:
+                content = "ok"
+        choices = [_C]
+    monkeypatch.setattr(ctx.engine, "create", lambda model, messages, **kw: seeds.append(kw["seed"]) or _R)
+    cluster.chat(ctx, "p", 100, "t")
+    cluster.chat(ctx, "p", 100, "t", draw=3)
+    assert seeds == [0, 2]
+
+
+def test_draws_reach_group_from_propose_and_from_the_aggregator(agg, monkeypatch):
+    ctx = _ctx(agg, {"p1": {"w5"}, "p2": {"w6"}, "p3": {"w7"}})
+    got = []
+
+    def fake_group(ctx, pile, draws=None):
+        got.append(draws)
+        return [{"head": "Run gamma drills", "members": ["p1", "p2"]}]
+    monkeypatch.setattr(cluster, "group", fake_group)
+    art = cluster.propose(ctx, {"meta": {"n_atoms": 3}, "core": [], "released": ["p1", "p2", "p3"]}, draws=3)
+    assert got == [3] and art["draw_pile_log"]["draws"] == 3
+    art = cluster.propose(ctx, {"meta": {"n_atoms": 3}, "core": [], "released": ["p1", "p2", "p3"]})
+    assert "draws" not in art["draw_pile_log"]
+
+    class Reached(Exception):
+        pass
+
+    def fake_propose(ctx, build, draws=None):
+        got.append(("propose", draws))
+        raise Reached
+    monkeypatch.setattr(cluster, "propose", fake_propose)
+    try:
+        agg.build(atoms_from_sources({"p1": {"w5"}, "p2": {"w6"}}), cluster_draws=5)
+    except Reached:
+        pass
+    assert got[-1] == ("propose", 5)

@@ -73,15 +73,17 @@ class Aggregator:
 
     # ── the chain ─────────────────────────────────────────────────────────────────────────────────
     def build(self, atoms, *, standing=None, fresh=False, max_cycles=None, workdir=None, occupation=None,
-              reference_statements=None, on_stage=None) -> dict:
+              reference_statements=None, on_stage=None, cluster_draws=None) -> dict:
         """Build the task list for `atoms` (an Atoms or a path to its CSV). `standing` is an adopted list
-        (final.json's dict) to amend, or the continuity registry when `fresh`."""
+        (final.json's dict) to amend, or the continuity registry when `fresh`. `cluster_draws` repeats every
+        clustering that many times and keeps the families the draws agree on (default models.cluster.draws, 1)."""
         from .aggregation import chain
         if not isinstance(atoms, Atoms):
             atoms = Atoms.read(atoms)
         self._last_atoms = atoms
         ctx = self.context(atoms, workdir=workdir, occupation=occupation, reference_statements=reference_statements)
-        return chain.build(ctx, standing=standing, fresh=fresh, max_cycles=max_cycles, on_stage=on_stage)
+        return chain.build(ctx, standing=standing, fresh=fresh, max_cycles=max_cycles, on_stage=on_stage,
+                           cluster_draws=cluster_draws)
 
     def verify(self, build, atoms=None) -> list[str]:
         from .aggregation import verify
