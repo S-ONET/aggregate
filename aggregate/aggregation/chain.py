@@ -40,8 +40,10 @@ def _checked(ctx, build, stage):
     return build
 
 
-def build(ctx, standing=None, fresh=False, max_cycles=None, on_stage=None) -> dict:
-    """Build the list for ctx.atoms. `standing` is an adopted artifact (final.json's dict) or None."""
+def build(ctx, standing=None, fresh=False, max_cycles=None, on_stage=None, cluster_draws=None) -> dict:
+    """Build the list for ctx.atoms. `standing` is an adopted artifact (final.json's dict) or None.
+    `cluster_draws` is how many times each clustering is repeated before the consensus is taken (default
+    models.cluster.draws, 1)."""
     max_cycles = int(max_cycles or ctx.config.get("chain.max_cycles", 3))
     reg = families.registry(standing) if standing else None
     if standing and not fresh:
@@ -60,7 +62,7 @@ def build(ctx, standing=None, fresh=False, max_cycles=None, on_stage=None) -> di
         if on_stage:
             on_stage(stage, cycle, art)
     for cycle in range(1, max_cycles + 1):
-        art = cluster.propose(ctx, art)
+        art = cluster.propose(ctx, art, draws=cluster_draws)
         n_new = len(art["draw_pile_log"]["founded"])
         for h in art["draw_pile_log"]["founded"]:
             print(f"  NEW [{h[:90]}]")

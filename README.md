@@ -111,6 +111,13 @@ models:
   write: {model: gpt-5.4}
 ```
 
+One clustering call varies from draw to draw. `models.cluster.draws` (or `agg.build(atoms, cluster_draws=5)`
+for one build) repeats every clustering that many times and keeps the consensus. The draws give a
+co-occurrence matrix (the share of draws that filed two atoms in the same family), and the consensus is a
+spectral clustering of that matrix into as many families as the median draw made. An atom filed in no more
+than `models.cluster.min_filed` (0.5) of the draws stays in the pile for the next cycle. Each draw is one
+more call per clustering and is cached separately; the default of 1 is the single draw.
+
 ### Several instruments
 
 A list can be built from several kinds of data at once — interviews and job postings, say. Each kind is an
@@ -227,7 +234,8 @@ build = agg.build(atoms, standing=final)
 ## How the chain works
 
 cluster → write → split → write → merge / sharpen → split the merged families → write → refile, repeated until cluster proposes no new family
-that clears the source floor (cycle 1 always runs in full), capped at `chain.max_cycles`. Every judge
+that clears the source floor (cycle 1 always runs in full), capped at `chain.max_cycles`. With
+`models.cluster.draws` above 1, each cluster step is the consensus of that many draws. Every judge
 verdict is memoised on (model, prompt hash, inputs) under `cache_dir`, so a rebuild is nearly free, and the
 ledgers under `workdir/ledgers/` replay settled hearings. Cache keys are an interface:
 `tests/test_cache_keys.py` pins every recipe to what earlier builds paid for.
