@@ -11,7 +11,7 @@ An activity already filed reaches you because a coverage judge doubted its state
 is measured, and on this queue MOST OF WHAT IT DOUBTS BELONGS EXACTLY WHERE IT IS — being asked is not
 evidence that anything is wrong. So when the activity is already filed, FILE IT BACK under that same task
 unless another published task plainly describes it better, or no task describes it at all. Moving it costs a
-family a member and can drop it below the publishing floor; leaving it costs nothing when the fit is fair.
+cluster a member and can drop it below the publishing floor; leaving it costs nothing when the fit is fair.
 
   FILE      the activity belongs under one published task because the task's statement AS WRITTEN
             already describes this work: a reader holding the statement would recognize the activity as

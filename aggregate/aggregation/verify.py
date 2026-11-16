@@ -6,7 +6,7 @@
   ids         every family carries a unique sid
   duplicates  no statement text twice
   corpus      every filed member is a real atom; prevalence equals the distinct sources behind the members;
-              every family clears the floor
+              every family clears the floor (with instruments: from the scope stamp refile leaves on it)
   fusion      (report-only) every published statement has a duties verdict for its CURRENT members
 """
 from __future__ import annotations
@@ -22,8 +22,9 @@ def _stmt(f):
     return f.get("statement") or f.get("head") or ""
 
 
-def check(art, sources=None, min_sources=2):
-    """-> [failure strings]. `sources` is the atom -> sessions map; None skips the corpus check."""
+def check(art, sources=None, min_sources=2, floor=None):
+    """-> [failure strings]. `sources` is the atom -> sessions map; None skips the corpus check. `floor` (a
+    Floor) replaces the plain min_sources count."""
     bad, core = [], _core(art)
     filed = [m for f in core for m in (f.get("members") or [])]
     pile = [a for k in families.LEFTOVERS for a in (art.get(k) or ())]
@@ -54,7 +55,9 @@ def check(art, sources=None, min_sources=2):
             real = len({w for m in mem for w in sources.get(m, ())})
             if f.get("prevalence") is not None and f["prevalence"] != real:
                 bad.append(f"prevalence: {_stmt(f)[:50]!r} says {f['prevalence']}, members give {real}")
-            if real < min_sources:
+            if floor is not None:
+                bad += floor.problems(f, {w for m in mem for w in sources.get(m, ())})
+            elif real < min_sources:
                 bad.append(f"floor: {_stmt(f)[:50]!r} rests on {real} source(s), floor is {min_sources}")
     return bad
 
@@ -79,7 +82,8 @@ def siblings(arts):
 
 def invariants(ctx, build):
     """Every structural check against the context's atoms -> [failure strings] ([] = ok)."""
-    return check(build, ctx.atoms.sources if ctx.atoms is not None else None, ctx.min_sources)
+    return check(build, ctx.atoms.sources if ctx.atoms is not None else None, ctx.min_sources,
+                 ctx.floor if ctx.atoms is not None else None)
 
 
 def summary(build) -> str:

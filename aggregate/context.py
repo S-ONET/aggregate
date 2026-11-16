@@ -29,6 +29,7 @@ class Context:
         self.embeddings = embeddings or Embeddings(cache.dir / "stage2_prefilter", config.model("embed"), engine)
         self._judges = None
         self._batch = None
+        self._floor = None
         # per-run scratch: the writer's decision trace, its fusion flags, sharpen's alternatives, the docket
         self.trace: list = []
         self.form_flags: dict = {}
@@ -49,6 +50,14 @@ class Context:
     @property
     def min_sources(self) -> int:
         return int(self.config.get("min_sources", 2))
+
+    @property
+    def floor(self):
+        """The publishing rule (aggregation/floor.py): min_sources, or the per-instrument floors under scope."""
+        if self._floor is None:
+            from .aggregation.floor import Floor
+            self._floor = Floor(self)
+        return self._floor
 
     @property
     def judges(self):

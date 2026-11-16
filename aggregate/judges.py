@@ -9,6 +9,7 @@
     j.merge_or_separate(nodes, edges, members_of) -> [groups]      MERGE (with basis) / SEPARATE / KEEP over a component
     j.sharpen(nodes, edges, members_of, frozen) -> {node: [candidate rewrites]}
     j.writing_defects(statement, atoms) -> {defect, principle, trigger, confidence}
+    j.in_scope(statement, instrument, description) -> bool   would this instrument be expected to report the task?
     j.relation(x, y) -> {S,P,O,N: logprob}      the pair-relation judge, one order; relation_pair() averages both
     j.embed(texts) -> {text: unit vector}
     j.covers_many(pairs) / overlaps_many(pairs) / duties_many(rows) / dispose_many(items)   cache prefills
@@ -139,6 +140,48 @@ class Judges:
                 n += 1
             return n
         return sum(self._pool(one, chunks))
+
+    # ── scope ─────────────────────────────────────────────────────────────────────────────────────
+    def _scope_req(self, statement, instrument, description):
+        """(model, cache key, prompt). The key hashes the TEMPLATE and the instrument's description, so editing
+        either re-asks; the occupation is part of the rendered prompt and of the key."""
+        m = self.cfg.model("scope")
+        tmpl = self.ctx.prompts.template("scope")
+        key = sha256(SEP.join(["SCOPE1", m, sha256(tmpl), self.ctx.occupation, instrument, description, statement]))
+        prompt = self.ctx.prompt("scope", occupation=self.ctx.occupation, instrument=instrument,
+                                 description=description.strip(), statement=statement)
+        return m, key, prompt
+
+    @staticmethod
+    def _scope_parse(text):
+        try:
+            d = json.loads(strip_json(text) or "{}")
+        except Exception:                                 # noqa: BLE001
+            return None
+        v = d.get("in_scope") if isinstance(d, dict) else None
+        if isinstance(v, str) and v.strip().lower() in ("true", "false", "yes", "no"):
+            v = v.strip().lower() in ("true", "yes")
+        return {"in_scope": v, "reason": str(d.get("reason", ""))} if isinstance(v, bool) else None
+
+    def in_scope(self, statement, instrument, description, *, only_cached=False):
+        """Would `instrument` (described by `description`) be expected to report `statement`? -> bool, or None
+        with `only_cached` and no verdict on file."""
+        m, key, prompt = self._scope_req(statement, instrument, description)
+
+        def compute():
+            r = self._scope_parse(self.ctx.engine.chat(prompt, m, max_out=1500, json_mode=True,
+                                                       effort=self.cfg.effort("scope")))
+            if r is None:
+                raise RuntimeError("in_scope: unusable reply — refusing to cache a non-verdict")
+            return r
+        v = self.ctx.cache.memo("scope", key, compute, only_cached=only_cached)
+        return None if v is None else bool(v["in_scope"])
+
+    def in_scope_many(self, items) -> int:
+        """Fill the scope cache for [(statement, instrument, description)], fanned out. -> calls made."""
+        todo = sorted({i for i in items if self.ctx.cache.get("scope", self._scope_req(*i)[1]) is None})
+        self._pool(lambda i: self.in_scope(*i), todo)
+        return len(todo)
 
     # ── covers ────────────────────────────────────────────────────────────────────────────────────
     @property
