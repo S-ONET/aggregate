@@ -536,7 +536,7 @@ class Judges:
 
         def compute():
             self.ctx.engine.prewarm(instr, model)
-            d = json.loads(strip_json(self.ctx.engine.chat(prompt, model, max_out=4000, effort=effort, cache_prefix=instr)))
+            d = json.loads(strip_json(self.ctx.engine.chat(prompt, model, max_out=16000, effort=effort, cache_prefix=instr)))
             return {"sep": d.get("sep") or {}, "h": d.get("h") or {}}
         try:
             d = self.ctx.cache.memo("mece_sharpen_group", key, compute)

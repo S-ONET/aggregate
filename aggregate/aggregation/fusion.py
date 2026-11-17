@@ -244,7 +244,7 @@ def apply_splits(ctx, rows, source_meta, source_leftovers=None, source_name="bui
                 max(cand, key=lambda p: (len(p["members"]), -idx[id(p)]))["members"].append(atom)
         # members the judge never saw (member_cap) are re-homed to the nearest part, not dropped
         filed_here = {m for pp in pubs for m in pp["members"]}
-        unshown = set(r["members"]) - set(r.get("shown") or r["members"])
+        unshown = set(r["members"]) - set(r.get("shown") or blocks.cap_members(ctx, r["members"]))  # a replayed verdict has no `shown`
         rehome = [m for m in sorted(set(r["members"]) - filed_here) if m in unshown]
         if rehome and pubs:
             for m, i in blocks.assign_nearest(ctx, rehome, [p["members"] for p in pubs]).items():
